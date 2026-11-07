@@ -1181,20 +1181,23 @@ function createApplication(options = {}) {
     return next();
   }
 
-  const adminKeyboard = () => Markup.inlineKeyboard([
-    [Markup.button.callback('🧾 Topshiriq tasdiqlari', 'admin_claims')],
-    [Markup.button.callback('🏆 Haftalik g‘olib', 'admin_week')],
-    [
-      Markup.button.callback('📋 Topshiriqlar', 'admin_tasks'),
-      Markup.button.callback('📢 Kanallar', 'admin_channels'),
-    ],
-    [
-      Markup.button.callback('📊 Statistika', 'admin_stats'),
-      Markup.button.callback('📤 Xabar yuborish', 'admin_broadcast'),
-    ],
-    [Markup.button.callback('🎁 Referral sovg‘asi', 'admin_referral_gift')],
-    [Markup.button.callback('⚙️ Ball va havolalar', 'admin_settings')],
-  ]);
+  const adminKeyboard = () => {
+    const colored = (text, action, style) => ({ ...Markup.button.callback(text, action), style });
+    return Markup.inlineKeyboard([
+      [colored('🧾 Topshiriq tasdiqlari', 'admin_claims', 'success')],
+      [colored('🏆 Haftalik g‘olib', 'admin_week', 'danger')],
+      [
+        colored('📋 Topshiriqlar', 'admin_tasks', 'primary'),
+        colored('📢 Kanallar', 'admin_channels', 'primary'),
+      ],
+      [
+        colored('📊 Statistika', 'admin_stats', 'success'),
+        colored('📤 Xabar yuborish', 'admin_broadcast', 'danger'),
+      ],
+      [colored('🎁 Referral sovg‘asi', 'admin_referral_gift', 'success')],
+      [colored('⚙️ Ball va havolalar', 'admin_settings', 'primary')],
+    ]);
+  };
 
   async function showChannelSettings(ctx, page = 0) {
     const pageSize = 8;
