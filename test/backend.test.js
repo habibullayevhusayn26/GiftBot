@@ -145,6 +145,7 @@ test('leaderboard includes every verified user and gives users without points a 
   assert.deepEqual(pipeline[2].$project.score, {
     $ifNull: [{ $arrayElemAt: ['$ledgerTotals.score', 0] }, 0],
   });
+  assert.equal(pipeline[2].$project.photoUrl, '$photoUrl');
   assert.deepEqual(pipeline[3], { $sort: { score: -1, userId: 1 } });
 
   const allTimePipeline = buildLeaderboardPipeline('ledgers');
@@ -161,11 +162,13 @@ test('top donor pipeline sums only successful Stars donations and returns named 
   assert.deepEqual(pipeline[4].$lookup.pipeline[0], {
     $match: { $expr: { $eq: ['$_id', '$$donorUserId'] } },
   });
+  assert.equal(pipeline[4].$lookup.pipeline[1].$project.photoUrl, 1);
   assert.deepEqual(pipeline[5], { $unwind: '$user' });
   assert.deepEqual(pipeline[6].$project, {
     _id: 0,
     name: '$user.name',
     username: '$user.username',
+    photoUrl: '$user.photoUrl',
     stars: 1,
   });
   assert.equal(buildTopDonorsPipeline('donations', 'users', 5)[3].$limit, 5);

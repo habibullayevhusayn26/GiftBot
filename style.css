@@ -256,8 +256,11 @@ button { font-family: inherit; border: 0; background: none; color: inherit; curs
 .tier .progress i { transition-delay: .2s; }
 
 /* Avatar */
-.avatar { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-weight: 700; font-size: 17px; flex: none; background: linear-gradient(135deg, var(--a, #0a84ff), var(--b, #bf5af2)); overflow: hidden; }
-.avatar img { width: 100%; height: 100%; object-fit: cover; }
+.avatar { position: relative; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-weight: 700; font-size: 17px; flex: none; background: linear-gradient(135deg, var(--a, #0a84ff), var(--b, #bf5af2)); overflow: hidden; }
+.avatar-fallback { position: relative; z-index: 1; transition: opacity .15s; }
+.avatar .avatar-photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity .15s; }
+.avatar.has-photo .avatar-photo { opacity: 1; }
+.avatar.has-photo .avatar-fallback { opacity: 0; }
 .avatar.big { width: 84px; height: 84px; font-size: 34px; margin: 0 auto 12px; box-shadow: 0 8px 24px rgba(10, 132, 255, .3); }
 .profile { text-align: center; }
 .profile h3 { margin: 0; font-size: 24px; }

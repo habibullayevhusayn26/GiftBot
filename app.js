@@ -216,6 +216,30 @@ async function api(path, opts = {}) {
 /* ---------- Yordamchilar ---------- */
 const initials = (n) => (n || '?').trim().charAt(0).toUpperCase();
 const grad = (i) => { const g = GRADS[i % GRADS.length]; return `--a:${g[0]};--b:${g[1]}`; };
+function avatarMarkup(user, index) {
+  const photoUrl = typeof user.photoUrl === 'string' ? user.photoUrl : '';
+  let safePhotoUrl = '';
+  if (photoUrl) {
+    try {
+      const parsed = new URL(photoUrl);
+      if (parsed.protocol === 'https:') safePhotoUrl = parsed.href;
+    } catch {}
+  }
+  const fallback = `<span class="avatar-fallback">${esc(initials(user.name))}</span>`;
+  const image = safePhotoUrl
+    ? `<img class="avatar-photo" src="${esc(safePhotoUrl)}" alt="" loading="lazy" decoding="async" fetchpriority="low" />`
+    : '';
+  return `<div class="avatar" style="${grad(index)}">${fallback}${image}</div>`;
+}
+function mountAvatarImages(root) {
+  root.querySelectorAll('.avatar-photo:not([data-avatar-bound])').forEach((image) => {
+    image.dataset.avatarBound = 'true';
+    image.addEventListener('load', () => image.parentElement.classList.add('has-photo'), { once: true });
+    image.addEventListener('error', () => image.remove(), { once: true });
+    if (image.complete && image.naturalWidth > 0) image.parentElement.classList.add('has-photo');
+    else if (image.complete) image.remove();
+  });
+}
 const refLink = () => {
   if (liveInviteLink) return liveInviteLink;
   const p = `ref_${tgUser.id}`;
@@ -353,7 +377,7 @@ async function renderTop() {
   const pod = (x, rank, cls) => `
     <div class="pod glass ${cls}">
       <span class="medal ${cls}">${icon({ p1: '🥇', p2: '🥈', p3: '🥉' }[cls])}</span>
-      <div class="avatar" style="${grad(rank)}">${esc(initials(x.name))}</div>
+      ${avatarMarkup(x, rank)}
       <b>${esc(x.name)}</b><span>${fmt(x.score)}</span>
     </div>`;
   destroyAnimations($('#podium'));
@@ -363,7 +387,7 @@ async function renderTop() {
   const rows = data.slice(3).map((x, i) => `
     <div class="item lbrow">
       <span class="rank">${i + 4}</span>
-      <div class="avatar" style="${grad(i + 3)}">${esc(initials(x.name))}</div>
+      ${avatarMarkup(x, i + 3)}
       <div class="txt"><b>${esc(x.name)}</b><span>${x.invited === undefined ? (x.username ? `@${esc(x.username)}` : 'Ishtirokchi') : `${x.invited} ta taklif`}</span></div>
       <span class="score">${fmt(x.score)}</span>
     </div>`).join('');
@@ -371,13 +395,15 @@ async function renderTop() {
   const ownRow = own.score > 0 && !ownVisible ? `
     <div class="item lbrow me">
       <span class="rank">${own.rank || '—'}</span>
-      <div class="avatar" style="${grad(1)}">${esc(initials(demo.user.name))}</div>
+      ${avatarMarkup({ name: demo.user.name, photoUrl: demo.user.photoUrl }, 1)}
       <div class="txt"><b>${esc(own.name)}</b><span>Sizning o‘rningiz</span></div>
       <span class="score">${fmt(own.score)}</span>
     </div>` : '';
   $('#topList').innerHTML = rows + ownRow || (data.length
     ? '<div class="empty">Top-3 ishtirokchilar yuqorida ko‘rsatilgan.</div>'
     : '<div class="empty">Hali reytingda qatnashuvchi yo‘q.</div>');
+  mountAvatarImages($('#podium'));
+  mountAvatarImages($('#topList'));
   await donorsRequest;
 }
 
@@ -393,11 +419,12 @@ async function renderTopDonors() {
       ? donors.map((donor, index) => `
         <div class="item donor-row">
           <span class="rank">${index + 1}</span>
-          <div class="avatar" style="${grad(index)}">${esc(initials(donor.name))}</div>
+          ${avatarMarkup(donor, index)}
           <div class="txt"><b>${esc(donor.name || 'Foydalanuvchi')}</b><span>${donor.username ? `@${esc(donor.username)}` : 'Donater'}</span></div>
           <span class="donor-stars">${fmt(donor.stars)} ⭐</span>
         </div>`).join('')
       : '<div class="empty">Hali donat qilganlar yo‘q.</div>';
+    mountAvatarImages(container);
   } catch (error) {
     container.innerHTML = '<div class="empty">Donaterlar ro‘yxatini yuklab bo‘lmadi.</div>';
     toast(error.message);
