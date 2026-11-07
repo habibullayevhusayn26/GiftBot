@@ -179,6 +179,38 @@ function getReferralGiftMilestones(referralCount) {
   return milestones;
 }
 
+function buildLeaderboardPipeline(ledgerCollection, range = null) {
+  const ledgerMatch = {
+    $expr: { $eq: ['$userId', '$$leaderboardUserId'] },
+    points: { $gt: 0 },
+  };
+  if (range) ledgerMatch.createdAt = { $gte: range.start, $lt: range.end };
+  return [
+    { $match: { verified: true } },
+    {
+      $lookup: {
+        from: ledgerCollection,
+        let: { leaderboardUserId: '$_id' },
+        pipeline: [
+          { $match: ledgerMatch },
+          { $group: { _id: null, score: { $sum: '$points' } } },
+        ],
+        as: 'ledgerTotals',
+      },
+    },
+    {
+      $project: {
+        _id: 0,
+        userId: '$_id',
+        name: '$firstName',
+        username: '$username',
+        score: { $ifNull: [{ $arrayElemAt: ['$ledgerTotals.score', 0] }, 0] },
+      },
+    },
+    { $sort: { score: -1, userId: 1 } },
+  ];
+}
+
 function sendTelegramGift(bot, userId, giftId) {
   if (!/^\d+$/.test(String(userId))) throw new Error('Telegram user ID must be numeric.');
   if (typeof giftId !== 'string' || !giftId) throw new Error('Telegram gift ID is required.');
@@ -633,17 +665,7 @@ function createApplication(options = {}) {
 
   async function leaderboard(period, currentUserId) {
     const range = period === 'week' ? getWeekRange() : null;
-    const match = { points: { $gt: 0 } };
-    if (range) match.createdAt = { $gte: range.start, $lt: range.end };
-    const pipeline = [
-      { $match: match },
-      { $group: { _id: '$userId', score: { $sum: '$points' } } },
-      { $sort: { score: -1, _id: 1 } },
-      { $lookup: { from: User.collection.name, localField: '_id', foreignField: '_id', as: 'user' } },
-      { $unwind: '$user' },
-      { $project: { _id: 0, userId: '$_id', name: '$user.firstName', username: '$user.username', score: 1 } },
-    ];
-    const rows = await Ledger.aggregate(pipeline);
+    const rows = await User.aggregate(buildLeaderboardPipeline(Ledger.collection.name, range));
     const ownScore = await getPointTotal(currentUserId, range);
     let rank = null;
     if (ownScore > 0) {
@@ -660,15 +682,8 @@ function createApplication(options = {}) {
     return { rows, ownScore, rank };
   }
 
-  async function countLeaderboardParticipants(range = null) {
-    const match = { points: { $gt: 0 } };
-    if (range) match.createdAt = { $gte: range.start, $lt: range.end };
-    const [result] = await Ledger.aggregate([
-      { $match: match },
-      { $group: { _id: '$userId' } },
-      { $count: 'count' },
-    ]);
-    return result?.count || 0;
+  async function countLeaderboardParticipants() {
+    return User.countDocuments({ verified: true });
   }
 
   async function currentTasks(userId) {
@@ -1076,7 +1091,7 @@ function createApplication(options = {}) {
     const [users, verified, weeklyParticipants, totalParticipants, pendingClaims] = await Promise.all([
       User.countDocuments(),
       User.countDocuments({ verified: true }),
-      countLeaderboardParticipants(getWeekRange()),
+      countLeaderboardParticipants(),
       countLeaderboardParticipants(),
       Claim.countDocuments({ status: 'pending' }),
     ]);
@@ -1956,6 +1971,7 @@ module.exports = {
   getTashkentDate,
   getWeekRange,
   getReferralGiftMilestones,
+  buildLeaderboardPipeline,
   isActiveChatMember,
   decorateTelegramButton,
   decorateTelegramReplyMarkup,

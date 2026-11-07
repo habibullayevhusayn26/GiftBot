@@ -9,6 +9,7 @@ const {
   getTashkentDate,
   getWeekRange,
   getReferralGiftMilestones,
+  buildLeaderboardPipeline,
   isActiveChatMember,
   decorateTelegramButton,
   decorateTelegramReplyMarkup,
@@ -76,6 +77,28 @@ test('referral gifts are queued at each ten verified referrals', () => {
   assert.deepEqual(getReferralGiftMilestones(10), [10]);
   assert.deepEqual(getReferralGiftMilestones(25), [10, 20]);
   assert.deepEqual(getReferralGiftMilestones(Number.NaN), []);
+});
+
+test('leaderboard includes every verified user and gives users without points a zero score', () => {
+  const range = {
+    start: new Date('2026-11-02T00:00:00Z'),
+    end: new Date('2026-11-09T00:00:00Z'),
+  };
+  const pipeline = buildLeaderboardPipeline('ledgers', range);
+
+  assert.deepEqual(pipeline[0], { $match: { verified: true } });
+  assert.deepEqual(pipeline[1].$lookup.pipeline[0].$match, {
+    $expr: { $eq: ['$userId', '$$leaderboardUserId'] },
+    points: { $gt: 0 },
+    createdAt: { $gte: range.start, $lt: range.end },
+  });
+  assert.deepEqual(pipeline[2].$project.score, {
+    $ifNull: [{ $arrayElemAt: ['$ledgerTotals.score', 0] }, 0],
+  });
+  assert.deepEqual(pipeline[3], { $sort: { score: -1, userId: 1 } });
+
+  const allTimePipeline = buildLeaderboardPipeline('ledgers');
+  assert.equal('createdAt' in allTimePipeline[1].$lookup.pipeline[0].$match, false);
 });
 
 test('Telegram gift sends use the Bot API user_id and gift_id fields', async () => {

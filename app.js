@@ -341,13 +341,16 @@ async function renderTop() {
       <span class="score">${fmt(x.score)}</span>
     </div>`).join('');
   const ownVisible = data.some((x) => String(x.userId) === String(tgUser.id));
-  $('#topList').innerHTML = rows + (own.score > 0 && !ownVisible ? `
+  const ownRow = own.score > 0 && !ownVisible ? `
     <div class="item lbrow me">
       <span class="rank">${own.rank || '—'}</span>
       <div class="avatar" style="${grad(1)}">${esc(initials(demo.user.name))}</div>
       <div class="txt"><b>${esc(own.name)}</b><span>Sizning o‘rningiz</span></div>
       <span class="score">${fmt(own.score)}</span>
-    </div>` : '') || '<div class="empty">Hali ball to‘plaganlar yo‘q.</div>';
+    </div>` : '';
+  $('#topList').innerHTML = rows + ownRow || (data.length
+    ? '<div class="empty">Top-3 ishtirokchilar yuqorida ko‘rsatilgan.</div>'
+    : '<div class="empty">Hali reytingda qatnashuvchi yo‘q.</div>');
 }
 
 function renderProfile() {
