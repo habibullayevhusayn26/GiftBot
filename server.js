@@ -13,6 +13,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const REFERRAL_GIFT_MILESTONE = 10;
 const TELEGRAM_RETRY_BASE_MS = 1000;
 const TELEGRAM_RETRY_MAX_MS = 60000;
+const MAX_DONATION_STARS = 10000000;
+const DONATION_INVOICE_TTL_MS = 24 * 60 * 60 * 1000;
 const BUTTON_GRAPHEME_SEGMENTER = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
 const BUTTON_EMOJI_IDS = new Map([
   ['📢', '5972335630644943766'],
@@ -222,6 +224,47 @@ function sendTelegramGift(bot, userId, giftId) {
   });
 }
 
+function validateDonationAmount(value) {
+  if (typeof value !== 'number' && typeof value !== 'string') {
+    throw new Error(`Donat miqdori 1 dan ${MAX_DONATION_STARS.toLocaleString('en-US')} Stars gacha butun son bo‘lishi kerak.`);
+  }
+  if (typeof value === 'string' && !/^\d+$/.test(value)) {
+    throw new Error(`Donat miqdori 1 dan ${MAX_DONATION_STARS.toLocaleString('en-US')} Stars gacha butun son bo‘lishi kerak.`);
+  }
+  const amount = typeof value === 'number' ? value : Number(value);
+  if (!Number.isSafeInteger(amount) || amount < 1 || amount > MAX_DONATION_STARS) {
+    throw new Error(`Donat miqdori 1 dan ${MAX_DONATION_STARS.toLocaleString('en-US')} Stars gacha butun son bo‘lishi kerak.`);
+  }
+  return amount;
+}
+
+function createDonationInvoiceLink(bot, payload, amount) {
+  const stars = validateDonationAmount(amount);
+  return bot.telegram.createInvoiceLink({
+    title: 'Viral donati',
+    description: 'Viral loyihasini Telegram Stars orqali qo‘llab-quvvatlash.',
+    payload,
+    provider_token: '',
+    currency: 'XTR',
+    prices: [{ label: 'Ixtiyoriy donat', amount: stars }],
+  });
+}
+
+function isValidStarDonationPayment(donation, payment, userId, now = Date.now(), expectedStatus = 'pending') {
+  const age = donation?.createdAt instanceof Date ? now - donation.createdAt.getTime() : Number.POSITIVE_INFINITY;
+  return Boolean(
+    donation &&
+    payment &&
+    donation.status === expectedStatus &&
+    donation.userId === String(userId) &&
+    payment.currency === 'XTR' &&
+    Number.isSafeInteger(payment.total_amount) &&
+    donation.amount === payment.total_amount &&
+    age >= 0 &&
+    age <= DONATION_INVOICE_TTL_MS,
+  );
+}
+
 function getTelegramRetryDelay(attempt) {
   if (!Number.isSafeInteger(attempt) || attempt < 1) {
     throw new Error('Telegram retry attempt must be a positive integer.');
@@ -377,6 +420,17 @@ const referralGiftSchema = new mongoose.Schema({
   sentAt: { type: Date, default: null },
 }, { timestamps: true, versionKey: false });
 
+const donationSchema = new mongoose.Schema({
+  _id: { type: String },
+  userId: { type: String, required: true, index: true },
+  amount: { type: Number, required: true },
+  status: { type: String, enum: ['pending', 'checkout', 'paid', 'failed'], default: 'pending' },
+  checkoutQueryId: { type: String, default: '' },
+  telegramChargeId: { type: String, default: '' },
+  providerChargeId: { type: String, default: '' },
+  paidAt: { type: Date, default: null },
+}, { timestamps: true, versionKey: false });
+
 const User = mongoose.model('User', userSchema);
 const Ledger = mongoose.model('Ledger', ledgerSchema);
 const Task = mongoose.model('Task', taskSchema);
@@ -385,6 +439,7 @@ const Captcha = mongoose.model('Captcha', captchaSchema);
 const WeeklyAward = mongoose.model('WeeklyAward', weeklyAwardSchema);
 const Setting = mongoose.model('Setting', settingSchema);
 const ReferralGift = mongoose.model('ReferralGift', referralGiftSchema);
+const Donation = mongoose.model('Donation', donationSchema);
 
 class HttpError extends Error {
   constructor(status, message) {
@@ -1129,6 +1184,87 @@ function createApplication(options = {}) {
     return { sent, failed };
   }
 
+  bot.on('pre_checkout_query', async (ctx) => {
+    const query = ctx.update.pre_checkout_query;
+    const donation = await Donation.findById(query.invoice_payload).lean();
+    if (!isValidStarDonationPayment(donation, query, query.from.id)) {
+      if (donation?.status === 'checkout' && donation.checkoutQueryId === query.id &&
+          isValidStarDonationPayment(donation, query, query.from.id, Date.now(), 'checkout')) {
+        await ctx.answerPreCheckoutQuery(true);
+        return;
+      }
+      await ctx.answerPreCheckoutQuery(false, 'To‘lov havolasi eskirgan yoki ma’lumotlari mos emas.');
+      return;
+    }
+
+    const reserved = await Donation.findOneAndUpdate(
+      {
+        _id: donation._id,
+        userId: String(query.from.id),
+        status: 'pending',
+        amount: query.total_amount,
+        createdAt: { $gte: new Date(Date.now() - DONATION_INVOICE_TTL_MS) },
+      },
+      { $set: { status: 'checkout', checkoutQueryId: query.id } },
+      { new: true },
+    ).lean();
+    if (!reserved) {
+      await ctx.answerPreCheckoutQuery(false, 'To‘lov havolasi ishlatilgan yoki eskirgan. Yangi to‘lov yarating.');
+      return;
+    }
+    await ctx.answerPreCheckoutQuery(true);
+  });
+
+  bot.on('message', async (ctx, next) => {
+    const payment = ctx.message.successful_payment;
+    if (!payment) return next();
+
+    const userId = String(ctx.from.id);
+    const donation = await Donation.findById(payment.invoice_payload).lean();
+    if (!isValidStarDonationPayment(donation, payment, userId, Date.now(), 'checkout')) {
+      const alreadyProcessed = await Donation.exists({
+        _id: payment.invoice_payload,
+        userId,
+        status: 'paid',
+        telegramChargeId: payment.telegram_payment_charge_id,
+      });
+      if (alreadyProcessed) return;
+
+      const error = `Unmatched Telegram Stars payment: user=${userId}, payload=${payment.invoice_payload}, amount=${payment.total_amount} ${payment.currency}.`;
+      console.error(error);
+      await notifyAdmins(error);
+      await ctx.reply('To‘lovingiz qabul qilindi, ammo uni avtomatik tasdiqlab bo‘lmadi. Iltimos, yordam uchun adminga murojaat qiling.');
+      return;
+    }
+
+    const updated = await Donation.findOneAndUpdate(
+      { _id: donation._id, userId, status: 'checkout', amount: payment.total_amount },
+      {
+        $set: {
+          status: 'paid',
+          telegramChargeId: payment.telegram_payment_charge_id,
+          providerChargeId: payment.provider_payment_charge_id,
+          paidAt: new Date(),
+        },
+      },
+      { new: true },
+    ).lean();
+    if (!updated) {
+      const alreadyProcessed = await Donation.exists({
+        _id: donation._id,
+        userId,
+        status: 'paid',
+        telegramChargeId: payment.telegram_payment_charge_id,
+      });
+      if (alreadyProcessed) return;
+      throw new Error(`Could not record Telegram Stars payment ${payment.telegram_payment_charge_id}.`);
+    }
+
+    await ctx.reply(`Rahmat! Botni ${updated.amount} ⭐ Stars bilan qo‘llab-quvvatladingiz.`);
+    const fullName = [ctx.from.first_name, ctx.from.last_name].filter(Boolean).join(' ');
+    await notifyAdmins(`⭐ ${telegramUserMention(userId, fullName || 'Foydalanuvchi')} botga ${updated.amount} Stars donat qildi.`);
+  });
+
   bot.on('message', async (ctx, next) => {
     const adminId = String(ctx.from?.id || '');
     if (!config.adminIds.has(adminId)) return next();
@@ -1761,6 +1897,27 @@ function createApplication(options = {}) {
     res.json({ ok: true });
   }));
 
+  app.post('/api/donations/invoice', authenticate, requireVerified, asyncRoute(async (req, res) => {
+    let amount;
+    try {
+      amount = validateDonationAmount(req.body?.amount);
+    } catch (error) {
+      throw new HttpError(400, error.message);
+    }
+    const userId = String(req.telegram.id);
+    const payload = `donation:${userId}:${crypto.randomBytes(16).toString('hex')}`;
+    await Donation.create({ _id: payload, userId, amount });
+
+    let invoiceLink;
+    try {
+      invoiceLink = await createDonationInvoiceLink(bot, payload, amount);
+    } catch (error) {
+      await Donation.updateOne({ _id: payload, status: 'pending' }, { $set: { status: 'failed' } });
+      throw error;
+    }
+    res.json({ invoiceLink });
+  }));
+
   app.get('/api/leaderboard', authenticate, requireVerified, asyncRoute(async (req, res) => {
     const period = req.query.period === 'all' ? 'all' : 'week';
     res.json(await leaderboard(period, String(req.telegram.id)));
@@ -1917,7 +2074,7 @@ async function start() {
   const { app, bot, config, ensureSeedTasks, closePreviousWeek } = createApplication();
   if (!process.env.MONGODB_URI) throw new Error('MONGODB_URI is required.');
   await mongoose.connect(process.env.MONGODB_URI);
-  await Promise.all([User, Ledger, Task, Claim, Captcha, WeeklyAward, Setting, ReferralGift].map((model) => model.init()));
+  await Promise.all([User, Ledger, Task, Claim, Captcha, WeeklyAward, Setting, ReferralGift, Donation].map((model) => model.init()));
   await ensureSeedTasks();
   await closePreviousWeek();
 
@@ -1960,7 +2117,7 @@ async function start() {
     }
   };
   void retryTelegramOperation('Telegram bot connection', () => bot.launch(
-    { allowedUpdates: ['message', 'callback_query', 'chat_member'] },
+    { allowedUpdates: ['message', 'callback_query', 'chat_member', 'pre_checkout_query'] },
     () => {
       config.botUsername = config.botUsername || bot.botInfo?.username || '';
       console.log(`Telegram bot connected${config.botUsername ? ` as @${config.botUsername}` : ''}.`);
@@ -1995,6 +2152,9 @@ module.exports = {
   getWeekRange,
   getTelegramRetryDelay,
   getReferralGiftMilestones,
+  validateDonationAmount,
+  createDonationInvoiceLink,
+  isValidStarDonationPayment,
   buildLeaderboardPipeline,
   isActiveChatMember,
   decorateTelegramButton,

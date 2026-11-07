@@ -10,6 +10,9 @@ const {
   getWeekRange,
   getTelegramRetryDelay,
   getReferralGiftMilestones,
+  validateDonationAmount,
+  createDonationInvoiceLink,
+  isValidStarDonationPayment,
   buildLeaderboardPipeline,
   isActiveChatMember,
   decorateTelegramButton,
@@ -125,6 +128,59 @@ test('Telegram gift sends use the Bot API user_id and gift_id fields', async () 
   assert.deepEqual(request, ['sendGift', { user_id: 123456, gift_id: 'gift-id' }]);
   assert.throws(() => sendTelegramGift(bot, 'not-an-id', 'gift-id'), /must be numeric/);
   assert.throws(() => sendTelegramGift(bot, '123456', ''), /gift ID is required/);
+});
+
+test('Stars donation amounts are positive whole numbers within the Bot API limit', () => {
+  assert.equal(validateDonationAmount(1), 1);
+  assert.equal(validateDonationAmount('250'), 250);
+  for (const amount of [0, -1, 1.5, '1.5', '', true, 10000001, Number.NaN]) {
+    assert.throws(() => validateDonationAmount(amount), /Donat miqdori/);
+  }
+});
+
+test('Stars donation invoices use the XTR currency and exact user-selected amount', async () => {
+  let invoice;
+  const bot = {
+    telegram: {
+      createInvoiceLink: async (value) => {
+        invoice = value;
+        return 'https://t.me/$invoice';
+      },
+    },
+  };
+  assert.equal(await createDonationInvoiceLink(bot, 'donation:123:nonce', 75), 'https://t.me/$invoice');
+  assert.deepEqual(invoice, {
+    title: 'Viral donati',
+    description: 'Viral loyihasini Telegram Stars orqali qo‘llab-quvvatlash.',
+    payload: 'donation:123:nonce',
+    provider_token: '',
+    currency: 'XTR',
+    prices: [{ label: 'Ixtiyoriy donat', amount: 75 }],
+  });
+});
+
+test('Stars donations accept only matching, recent Telegram payments', () => {
+  const now = Date.parse('2026-11-07T12:00:00Z');
+  const donation = {
+    userId: '123',
+    amount: 40,
+    status: 'pending',
+    createdAt: new Date(now - 1000),
+  };
+  const payment = { currency: 'XTR', total_amount: 40 };
+  assert.equal(isValidStarDonationPayment(donation, payment, '123', now), true);
+  assert.equal(isValidStarDonationPayment(donation, payment, '123', now, 'checkout'), false);
+  assert.equal(isValidStarDonationPayment(donation, payment, '456', now), false);
+  assert.equal(isValidStarDonationPayment(donation, { ...payment, total_amount: 41 }, '123', now), false);
+  assert.equal(isValidStarDonationPayment(donation, { ...payment, currency: 'USD' }, '123', now), false);
+  assert.equal(isValidStarDonationPayment({
+    ...donation,
+    status: 'checkout',
+  }, payment, '123', now, 'checkout'), true);
+  assert.equal(isValidStarDonationPayment({
+    ...donation,
+    createdAt: new Date(now - 24 * 60 * 60 * 1000 - 1),
+  }, payment, '123', now), false);
 });
 
 test('Telegram channel membership accepts active members and rejects left users', () => {

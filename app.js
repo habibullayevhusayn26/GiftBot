@@ -443,6 +443,51 @@ $('#taskList').addEventListener('click', async (e) => {
   renderHome();
 });
 
+$('#donateBtn').addEventListener('click', async () => {
+  const input = $('#donationAmount');
+  const button = $('#donateBtn');
+  const amount = Number(input.value);
+  if (!Number.isSafeInteger(amount) || amount < 1 || amount > 10000000) {
+    toast('Donat miqdori 1 dan 10 000 000 Stars gacha butun son bo‘lishi kerak.');
+    input.focus();
+    return;
+  }
+  if (!LIVE_MODE) {
+    toast('Donat qilish uchun Mini-ilovani Telegram ichida oching.');
+    return;
+  }
+  if (typeof tg?.openInvoice !== 'function') {
+    toast('Stars to‘lovi uchun Telegram ilovasini yangilang.');
+    return;
+  }
+
+  button.disabled = true;
+  input.disabled = true;
+  try {
+    const invoice = await api('/donations/invoice', {
+      method: 'POST',
+      body: JSON.stringify({ amount }),
+    });
+    if (typeof invoice?.invoiceLink !== 'string' || !invoice.invoiceLink) {
+      throw new Error('To‘lov havolasini yaratib bo‘lmadi.');
+    }
+    tg.openInvoice(invoice.invoiceLink, (status) => {
+      button.disabled = false;
+      input.disabled = false;
+      if (status === 'paid') {
+        haptic('success');
+        toast(`Rahmat! ${fmt(amount)} Stars donat qilindi.`);
+      } else if (status === 'failed') {
+        toast('To‘lov amalga oshmadi. Qayta urinib ko‘ring.');
+      }
+    });
+  } catch (error) {
+    button.disabled = false;
+    input.disabled = false;
+    toast(error.message);
+  }
+});
+
 $('#copyBtn').addEventListener('click', async () => {
   try { await navigator.clipboard.writeText(refLink()); }
   catch { const i = document.createElement('input'); i.value = refLink(); document.body.appendChild(i); i.select(); document.execCommand('copy'); i.remove(); }
