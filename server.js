@@ -622,21 +622,35 @@ function createApplication(options = {}) {
   };
 
   const bot = options.bot || new Telegraf(botToken);
-  const originalCallApi = bot.telegram.callApi.bind(bot.telegram);
-  bot.telegram.callApi = (method, payload, ...args) => {
-    const markupPayload = payload.reply_markup
-      ? { ...payload, reply_markup: decorateTelegramReplyMarkup(payload.reply_markup) }
-      : payload;
-    if (method === 'sendMessage' && typeof payload.text === 'string') {
-      const { entities, ...message } = markupPayload;
-      return originalCallApi(method, {
-        ...message,
-        text: toTelegramHtml(payload.text),
-        parse_mode: 'HTML',
-      }, ...args);
-    }
-    return originalCallApi(method, markupPayload, ...args);
+  // Telegraf har bir update uchun YANGI Telegram obyekti yaratadi (ctx.telegram),
+  // shuning uchun faqat bot.telegram ni o'zgartirish ctx.reply() ga ta'sir qilmaydi.
+  // Shu sabab o'rovni har ikkalasiga ham qo'llaymiz.
+  const patchTelegramCallApi = (telegram) => {
+    if (!telegram || telegram.premiumEmojiPatched) return telegram;
+    const originalCallApi = telegram.callApi.bind(telegram);
+    telegram.callApi = (method, payload, ...args) => {
+      if (!payload || typeof payload !== 'object') return originalCallApi(method, payload, ...args);
+      const markupPayload = payload.reply_markup
+        ? { ...payload, reply_markup: decorateTelegramReplyMarkup(payload.reply_markup) }
+        : payload;
+      if (method === 'sendMessage' && typeof payload.text === 'string') {
+        const { entities, ...message } = markupPayload;
+        return originalCallApi(method, {
+          ...message,
+          text: toTelegramHtml(payload.text),
+          parse_mode: 'HTML',
+        }, ...args);
+      }
+      return originalCallApi(method, markupPayload, ...args);
+    };
+    telegram.premiumEmojiPatched = true;
+    return telegram;
   };
+  patchTelegramCallApi(bot.telegram);
+  bot.use((ctx, next) => {
+    patchTelegramCallApi(ctx.telegram);
+    return next();
+  });
   const app = express();
   const pendingAdminInputs = new Map();
   const pendingChannelSelections = new Map();
