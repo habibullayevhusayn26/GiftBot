@@ -81,7 +81,7 @@ test('Telegram channel membership accepts active members and rejects left users'
 test('Telegram HTML prefixes every message inline and safely escapes message text', () => {
   assert.equal(
     toTelegramHtml('✅ <script>&'),
-    '<tg-emoji emoji-id="5972237795584909109">💬</tg-emoji> ✅ &lt;script&gt;&amp;',
+    '<tg-emoji emoji-id="5971815857997750999">✅</tg-emoji> &lt;script&gt;&amp;',
   );
   assert.equal(
     toTelegramHtml('Oddiy xabar'),
@@ -89,7 +89,11 @@ test('Telegram HTML prefixes every message inline and safely escapes message tex
   );
   assert.equal(
     toTelegramHtml('⚙️ sozlama'),
-    '<tg-emoji emoji-id="5972237795584909109">💬</tg-emoji> ⚙️ sozlama',
+    '<tg-emoji emoji-id="5974411495713294659">⚙</tg-emoji> sozlama',
+  );
+  assert.equal(
+    toTelegramHtml('👋 Xush kelibsiz!'),
+    '<tg-emoji emoji-id="5972185031911677527">👋</tg-emoji> Xush kelibsiz!',
   );
 });
 

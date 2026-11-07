@@ -65,6 +65,7 @@ const BUTTON_EMOJI_IDS = new Map([
   ['📍', '5974418891646967544'],
   ['🎲', '5974411534367989550'],
   ['🆓', '5974381894798680155'],
+  ['👋', '5972185031911677527'],
 ]);
 const BUTTON_STYLE_EMOJI_IDS = {
   primary: '5974236196623098000',
@@ -120,12 +121,24 @@ function decorateTelegramReplyMarkup(replyMarkup) {
 }
 
 function toTelegramHtml(value) {
-  const escaped = String(value).replace(/[&<>]/g, (character) => ({
+  const text = String(value);
+  const leadingText = text.trimStart();
+  const firstGrapheme = BUTTON_GRAPHEME_SEGMENTER
+    .segment(leadingText)[Symbol.iterator]().next().value?.segment;
+  const normalizedEmoji = firstGrapheme?.replace(/\uFE0F/g, '');
+  const emojiId = normalizedEmoji && BUTTON_EMOJI_IDS.get(normalizedEmoji);
+  const messageEmoji = emojiId
+    ? `<tg-emoji emoji-id="${emojiId}">${normalizedEmoji}</tg-emoji>`
+    : '<tg-emoji emoji-id="5972237795584909109">💬</tg-emoji>';
+  const messageText = emojiId
+    ? leadingText.slice(firstGrapheme.length).trimStart()
+    : text;
+  const escaped = messageText.replace(/[&<>]/g, (character) => ({
     '&': '&amp;',
     '<': '&lt;',
     '>': '&gt;',
   })[character]);
-  return `<tg-emoji emoji-id="5972237795584909109">💬</tg-emoji> ${escaped}`;
+  return `${messageEmoji}${escaped ? ` ${escaped}` : ''}`;
 }
 
 const DEFAULTS = {
@@ -820,7 +833,7 @@ function createApplication(options = {}) {
       ? `\nSo‘nggi haftalik sovrin: ${latest.status === 'paid' ? 'to‘langan' : 'to‘lash kutilmoqda'}`
       : '\nHaftalik g‘olib hali aniqlanmagan.';
     await ctx.reply(
-      `🛠 Admin panel\n\nHaftalik sovrin: ${Number(config.weeklyPrize).toLocaleString('uz-UZ')} so‘m\nKutilayotgan tasdiqlar: ${pending}${awardLine}\n\nBarcha o‘yin sozlamalari MongoDB’da saqlanadi.`,
+      `⚙️ Admin panel\n\nHaftalik sovrin: ${Number(config.weeklyPrize).toLocaleString('uz-UZ')} so‘m\nKutilayotgan tasdiqlar: ${pending}${awardLine}\n\nBarcha o‘yin sozlamalari MongoDB’da saqlanadi.`,
       adminKeyboard(),
     );
   }
@@ -984,7 +997,7 @@ function createApplication(options = {}) {
       config.botUsername = identity.username;
     }
     await ctx.reply(
-      'Viral mini-ilovasiga xush kelibsiz! Do‘st taklif qiling, topshiriqlarni bajaring va haftalik sovrin uchun bellashing.',
+      '👋 Viral mini-ilovasiga xush kelibsiz! Do‘st taklif qiling, topshiriqlarni bajaring va haftalik sovrin uchun bellashing.',
       Markup.inlineKeyboard([[Markup.button.webApp('Mini ilovani ochish', config.appUrl)]]),
     );
   });
