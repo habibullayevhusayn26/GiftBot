@@ -496,11 +496,18 @@ $('#taskList').addEventListener('click', async (e) => {
 
 $('#donateBtn').addEventListener('click', async () => {
   const input = $('#donationAmount');
+  const messageInput = $('#donationMessage');
   const button = $('#donateBtn');
   const amount = Number(input.value);
+  const message = messageInput.value.trim();
   if (!Number.isSafeInteger(amount) || amount < 1 || amount > 10000000) {
     toast('Donat miqdori 1 dan 10 000 000 Stars gacha butun son bo‘lishi kerak.');
     input.focus();
+    return;
+  }
+  if (!message || message.length > 500) {
+    toast('Donat uchun 1 dan 500 belgigacha xabar yozing.');
+    messageInput.focus();
     return;
   }
   if (!LIVE_MODE) {
@@ -514,10 +521,11 @@ $('#donateBtn').addEventListener('click', async () => {
 
   button.disabled = true;
   input.disabled = true;
+  messageInput.disabled = true;
   try {
     const invoice = await api('/donations/invoice', {
       method: 'POST',
-      body: JSON.stringify({ amount }),
+      body: JSON.stringify({ amount, message }),
     });
     if (typeof invoice?.invoiceLink !== 'string' || !invoice.invoiceLink) {
       throw new Error('To‘lov havolasini yaratib bo‘lmadi.');
@@ -525,6 +533,7 @@ $('#donateBtn').addEventListener('click', async () => {
     tg.openInvoice(invoice.invoiceLink, (status) => {
       button.disabled = false;
       input.disabled = false;
+      messageInput.disabled = false;
       if (status === 'paid') {
         haptic('success');
         toast(`Rahmat! ${fmt(amount)} Stars donat qilindi.`);
@@ -535,6 +544,7 @@ $('#donateBtn').addEventListener('click', async () => {
   } catch (error) {
     button.disabled = false;
     input.disabled = false;
+    messageInput.disabled = false;
     toast(error.message);
   }
 });

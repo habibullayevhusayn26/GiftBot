@@ -12,6 +12,9 @@ const {
   getReferralGiftMilestones,
   getReferralGiftProgress,
   validateDonationAmount,
+  validateDonationMessage,
+  createDonationAdminMessage,
+  notifyAdminsAndPin,
   createDonationInvoiceLink,
   isValidStarDonationPayment,
   buildLeaderboardPipeline,
@@ -191,6 +194,57 @@ test('Stars donation amounts are positive whole numbers within the Bot API limit
   for (const amount of [0, -1, 1.5, '1.5', '', true, 10000001, Number.NaN]) {
     assert.throws(() => validateDonationAmount(amount), /Donat miqdori/);
   }
+});
+
+test('donation messages are required and bounded to 500 characters', () => {
+  assert.equal(validateDonationMessage('  Rahmat!  '), 'Rahmat!');
+  assert.throws(() => validateDonationMessage('   '), /1 dan 500/);
+  assert.throws(() => validateDonationMessage('a'.repeat(501)), /1 dan 500/);
+  assert.throws(() => validateDonationMessage(null), /Donat xabarini yozing/);
+});
+
+test('admin donation message includes username, Telegram ID, Stars, and user text', () => {
+  const message = createDonationAdminMessage({
+    userId: '12345',
+    name: 'Ali',
+    username: 'ali_user',
+    amount: 80,
+    message: 'Loyihaga omad!',
+  });
+  assert.match(message, /Username: @ali_user/);
+  assert.match(message, /Telegram ID: 12345/);
+  assert.match(message, /Miqdor: 80 Stars/);
+  assert.match(message, /Xabar: Loyihaga omad!/);
+  assert.match(toTelegramHtml(message), /Loyihaga omad!/);
+  assert.match(toTelegramHtml(createDonationAdminMessage({
+    userId: '12345', name: 'Ali', username: '', amount: 1, message: '<b>salom</b>',
+  })), /Xabar: &lt;b&gt;salom&lt;\/b&gt;/);
+  assert.throws(() => createDonationAdminMessage({
+    userId: 'invalid', name: 'Ali', username: '', amount: 1, message: 'x',
+  }), /user ID must be numeric/);
+});
+
+test('donation notifications are sent and then pinned in each admin chat', async () => {
+  const calls = [];
+  const bot = {
+    telegram: {
+      sendMessage: async (chatId, text) => {
+        calls.push(['sendMessage', chatId, text]);
+        return { message_id: Number(chatId) + 100 };
+      },
+      callApi: async (method, payload) => {
+        calls.push([method, payload.chat_id, payload.message_id]);
+        return true;
+      },
+    },
+  };
+  await notifyAdminsAndPin(bot, new Set(['10', '20']), 'donation');
+  assert.deepEqual(calls, [
+    ['sendMessage', '10', 'donation'],
+    ['pinChatMessage', '10', 110],
+    ['sendMessage', '20', 'donation'],
+    ['pinChatMessage', '20', 120],
+  ]);
 });
 
 test('Stars donation invoices use the XTR currency and exact user-selected amount', async () => {

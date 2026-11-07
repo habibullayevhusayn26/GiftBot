@@ -283,6 +283,47 @@ function validateDonationAmount(value) {
   return amount;
 }
 
+function validateDonationMessage(value) {
+  if (typeof value !== 'string') {
+    throw new Error('Donat xabarini yozing (1–500 belgi).');
+  }
+  const message = value.trim();
+  if (!message || message.length > 500) {
+    throw new Error('Donat xabari 1 dan 500 belgigacha bo‘lishi kerak.');
+  }
+  return message;
+}
+
+function createDonationAdminMessage({ userId, name, username, amount, message }) {
+  if (!/^\d+$/.test(String(userId))) throw new Error('Telegram user ID must be numeric.');
+  if (!Number.isSafeInteger(amount) || amount < 1) throw new Error('Donation amount must be a positive integer.');
+  return `⭐ Yangi donat\n\nFoydalanuvchi: ${telegramUserMention(userId, name || 'Foydalanuvchi')}\n` +
+    `Username: ${username ? `@${username}` : 'username yo‘q'}\n` +
+    `Telegram ID: ${userId}\nMiqdor: ${amount} Stars\nXabar: ${validateDonationMessage(message)}`;
+}
+
+async function notifyAdminsAndPin(bot, adminIds, text) {
+  for (const adminId of adminIds) {
+    let sent;
+    try {
+      sent = await bot.telegram.sendMessage(adminId, text);
+    } catch (error) {
+      console.error(`Could not send donation notification to admin ${adminId}:`, error.message);
+      continue;
+    }
+
+    try {
+      await bot.telegram.callApi('pinChatMessage', {
+        chat_id: adminId,
+        message_id: sent.message_id,
+        disable_notification: true,
+      });
+    } catch (error) {
+      console.error(`Donation notification reached admin ${adminId} but could not be pinned:`, error.message);
+    }
+  }
+}
+
 function createDonationInvoiceLink(bot, payload, amount) {
   const stars = validateDonationAmount(amount);
   return bot.telegram.createInvoiceLink({
@@ -469,6 +510,7 @@ const donationSchema = new mongoose.Schema({
   _id: { type: String },
   userId: { type: String, required: true, index: true },
   amount: { type: Number, required: true },
+  message: { type: String, required: true, maxlength: 500 },
   status: { type: String, enum: ['pending', 'checkout', 'paid', 'failed'], default: 'pending' },
   checkoutQueryId: { type: String, default: '' },
   telegramChargeId: { type: String, default: '' },
@@ -1311,7 +1353,13 @@ function createApplication(options = {}) {
 
     await ctx.reply(`Rahmat! Botni ${updated.amount} ⭐ Stars bilan qo‘llab-quvvatladingiz.`);
     const fullName = [ctx.from.first_name, ctx.from.last_name].filter(Boolean).join(' ');
-    await notifyAdmins(`⭐ ${telegramUserMention(userId, fullName || 'Foydalanuvchi')} botga ${updated.amount} Stars donat qildi.`);
+    await notifyAdminsAndPin(bot, config.adminIds, createDonationAdminMessage({
+      userId,
+      name: fullName,
+      username: ctx.from.username,
+      amount: updated.amount,
+      message: updated.message,
+    }));
   });
 
   bot.on('message', async (ctx, next) => {
@@ -1948,14 +1996,16 @@ function createApplication(options = {}) {
 
   app.post('/api/donations/invoice', authenticate, requireVerified, asyncRoute(async (req, res) => {
     let amount;
+    let message;
     try {
       amount = validateDonationAmount(req.body?.amount);
+      message = validateDonationMessage(req.body?.message);
     } catch (error) {
       throw new HttpError(400, error.message);
     }
     const userId = String(req.telegram.id);
     const payload = `donation:${userId}:${crypto.randomBytes(16).toString('hex')}`;
-    await Donation.create({ _id: payload, userId, amount });
+    await Donation.create({ _id: payload, userId, amount, message });
 
     let invoiceLink;
     try {
@@ -2211,6 +2261,9 @@ module.exports = {
   getReferralGiftMilestones,
   getReferralGiftProgress,
   validateDonationAmount,
+  validateDonationMessage,
+  createDonationAdminMessage,
+  notifyAdminsAndPin,
   createDonationInvoiceLink,
   isValidStarDonationPayment,
   buildLeaderboardPipeline,
