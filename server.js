@@ -105,6 +105,7 @@ const taskSchema = new mongoose.Schema({
   reward: { type: Number, min: 1, required: true },
   url: { type: String, default: '' },
   chatId: { type: String, default: '' },
+  requiredForReferral: { type: Boolean, default: false },
   requiredCount: { type: Number, default: 0 },
   enabled: { type: Boolean, default: true },
   position: { type: Number, default: 0 },
@@ -184,6 +185,11 @@ function normalizeAppUrl(value) {
   return appUrl.href;
 }
 
+function isActiveChatMember(member) {
+  return ['member', 'administrator', 'creator'].includes(member?.status) ||
+    (member?.status === 'restricted' && member.is_member === true);
+}
+
 function createApplication(options = {}) {
   const env = options.env || process.env;
   const botToken = env.API_TOKEN;
@@ -200,6 +206,8 @@ function createApplication(options = {}) {
 
   const bot = options.bot || new Telegraf(botToken);
   const app = express();
+  const pendingAdminInputs = new Map();
+  const pendingChannelSelections = new Map();
   app.disable('x-powered-by');
   app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
   app.use(express.json({ limit: '32kb' }));
@@ -262,16 +270,45 @@ function createApplication(options = {}) {
     }
   }
 
+  async function isMemberOfRequiredChannels(userId) {
+    const channels = await Task.find({
+      type: 'channel',
+      enabled: true,
+      requiredForReferral: true,
+    }).select('title chatId').lean();
+    for (const channel of channels) {
+      try {
+        const member = await bot.telegram.getChatMember(channel.chatId, Number(userId));
+        if (!isActiveChatMember(member)) return false;
+      } catch (error) {
+        console.error(`Could not check membership in required channel ${channel.chatId}:`, error.message);
+        throw new HttpError(503, 'Majburiy kanal a’zoligini tekshirib bo‘lmadi. Keyinroq qayta urinib ko‘ring.');
+      }
+    }
+    return true;
+  }
+
   async function awardReferral(user) {
     if (!user.invitedBy || user.referralRewarded || !user.verified) return;
+    if (!(await isMemberOfRequiredChannels(user._id))) return;
     const inviter = await User.findById(user.invitedBy);
-    if (!inviter) {
-      await User.updateOne({ _id: user._id }, { $set: { referralRewarded: true } });
-      return;
-    }
+    if (!inviter) return;
     await addPoints(inviter._id, config.refReward, 'referral', `referrer:${user._id}`, `Taklif: ${user.firstName}`);
     await addPoints(user._id, config.refBonus, 'referral', `referred:${user._id}`, 'Taklif havolasi orqali qo‘shildi');
-    await User.updateOne({ _id: user._id }, { $set: { referralRewarded: true } });
+    const result = await User.updateOne(
+      { _id: user._id, referralRewarded: false },
+      { $set: { referralRewarded: true } },
+    );
+    if (result.modifiedCount === 1) {
+      try {
+        await bot.telegram.sendMessage(
+          inviter._id,
+          `🎉 Do‘stingiz ${user.firstName} referraldan o‘tdi! Sizga +${config.refReward} coin qo‘shildi.`,
+        );
+      } catch (error) {
+        console.error(`Could not notify referrer ${inviter._id}:`, error.message);
+      }
+    }
   }
 
   async function ensureSeedTasks() {
@@ -399,6 +436,7 @@ function createApplication(options = {}) {
         reward: task.reward,
         type: task.type,
         url: task.url,
+        requiredForReferral: task.requiredForReferral,
         done,
         pending,
         progress,
@@ -545,9 +583,102 @@ function createApplication(options = {}) {
   const adminKeyboard = () => Markup.inlineKeyboard([
     [Markup.button.callback('🧾 Topshiriq tasdiqlari', 'admin_claims')],
     [Markup.button.callback('🏆 Haftalik g‘olib', 'admin_week')],
-    [Markup.button.callback('⚙️ Topshiriqlar', 'admin_tasks')],
-    [Markup.button.callback('🔧 O‘yin sozlamalari', 'admin_settings')],
+    [
+      Markup.button.callback('📋 Topshiriqlar', 'admin_tasks'),
+      Markup.button.callback('📢 Kanallar', 'admin_channels'),
+    ],
+    [Markup.button.callback('⚙️ Ball va havolalar', 'admin_settings')],
   ]);
+
+  async function showChannelSettings(ctx, page = 0) {
+    const pageSize = 8;
+    const [channels, total] = await Promise.all([
+      Task.find({ type: 'channel' }).sort({ requiredForReferral: -1, position: 1, _id: 1 })
+        .skip(page * pageSize).limit(pageSize).lean(),
+      Task.countDocuments({ type: 'channel' }),
+    ]);
+    const rows = [
+      [Markup.button.callback('➕ Majburiy kanal', 'channel_add_required')],
+      [Markup.button.callback('➕ Bonus kanal', 'channel_add_bonus')],
+    ];
+    for (const channel of channels) {
+      const kind = channel.requiredForReferral ? '🔒 Majburiy' : '🎁 Bonus';
+      const reward = channel.requiredForReferral ? '' : ` · ${channel.reward} coin`;
+      rows.push([Markup.button.callback(
+        `${channel.enabled ? '🟢' : '⚫'} ${kind}: ${channel.title}${reward}`.slice(0, 60),
+        `channel_info_${channel._id}`,
+      )]);
+    }
+    const navigation = [];
+    if (page > 0) navigation.push(Markup.button.callback('⬅️ Oldingi', `admin_channels_${page - 1}`));
+    if ((page + 1) * pageSize < total) navigation.push(Markup.button.callback('Keyingi ➡️', `admin_channels_${page + 1}`));
+    if (navigation.length) rows.push(navigation);
+    rows.push([Markup.button.callback('⬅️ Admin panel', 'admin_home')]);
+    await ctx.reply(
+      `📢 Kanal sozlamalari\nMajburiy obunalar: ${await Task.countDocuments({ type: 'channel', requiredForReferral: true, enabled: true })}\nBonus kanallar: ${await Task.countDocuments({ type: 'channel', requiredForReferral: false, enabled: true })}\n\nKanal qo‘shish uchun tugmani bosing va ro‘yxatdan bot hamda siz admin bo‘lgan kanalni tanlang.`,
+      Markup.inlineKeyboard(rows),
+    );
+  }
+
+  async function showTaskSettings(ctx, page = 0) {
+    const pageSize = 8;
+    const tasks = await Task.find({ type: { $ne: 'channel' } })
+      .sort({ position: 1, _id: 1 }).skip(page * pageSize).limit(pageSize).lean();
+    const total = await Task.countDocuments({ type: { $ne: 'channel' } });
+    if (!total) {
+      await ctx.reply('Kanal bo‘lmagan topshiriqlar topilmadi.', Markup.inlineKeyboard([
+        [Markup.button.callback('⬅️ Admin panel', 'admin_home')],
+      ]));
+      return;
+    }
+    for (const task of tasks) {
+      await ctx.reply(
+        `${task.enabled ? '🟢' : '⚫'} ${task.title}\nMukofot: ${task.reward} coin`,
+        Markup.inlineKeyboard([
+          [
+            Markup.button.callback(task.enabled ? 'O‘chirish' : 'Yoqish', `task_toggle_${task._id}`),
+            Markup.button.callback('✏️ Ballni o‘zgartirish', `task_reward_${task._id}`),
+          ],
+        ]),
+      );
+    }
+    const rows = [];
+    if (page > 0) rows.push([Markup.button.callback('⬅️ Oldingi', `admin_tasks_${page - 1}`)]);
+    if ((page + 1) * pageSize < total) rows.push([Markup.button.callback('Keyingi ➡️', `admin_tasks_${page + 1}`)]);
+    rows.push([Markup.button.callback('⬅️ Admin panel', 'admin_home')]);
+    await ctx.reply(
+      '📋 Topshiriqlar boshqaruvi\nYangi topshiriq uchun /task_add buyrug‘idan foydalaning.',
+      Markup.inlineKeyboard(rows),
+    );
+  }
+
+  async function promptAdminInput(ctx, input) {
+    const prompt = await ctx.reply(input.prompt, Markup.forceReply());
+    pendingAdminInputs.set(String(ctx.from.id), { ...input, promptMessageId: prompt.message_id });
+  }
+
+  async function showSettings(ctx) {
+    const keys = [
+      ['Haftalik sovrin', 'weeklyPrize'],
+      ['Taklif qiluvchiga bonus', 'refReward'],
+      ['Taklif bilan kelganga bonus', 'refBonus'],
+      ['Yangi bonus kanal balli', 'channelReward'],
+      ['Instagram topshirig‘i', 'instagramReward'],
+      ['Do‘st taklif qilish topshirig‘i', 'invite3Reward'],
+      ['Kunlik bonus', 'dailyBonusBase'],
+      ['Ketma-ket kun bonusi', 'dailyStreakBonus'],
+    ];
+    const rows = keys.map(([title, key]) => [Markup.button.callback(
+      `✏️ ${title}: ${Number(config[key]).toLocaleString('uz-UZ')}`,
+      `setting_edit_${key}`,
+    )]);
+    rows.push([Markup.button.callback('📷 Instagram havolasini o‘zgartirish', 'setting_edit_instagramUrl')]);
+    rows.push([Markup.button.callback('⬅️ Admin panel', 'admin_home')]);
+    await ctx.reply(
+      `⚙️ Ball va havolalar\n\nInstagram: ${config.instagramUrl || 'sozlanmagan'}\n\nQiymatni o‘zgartirish uchun tegishli tugmani bosing. Sozlamalar MongoDB’da saqlanadi.`,
+      Markup.inlineKeyboard(rows),
+    );
+  }
 
   async function showAdminPanel(ctx) {
     const latest = await WeeklyAward.findOne({ status: { $in: ['pending', 'paid'] } }).sort({ _id: -1 }).lean();
@@ -561,8 +692,155 @@ function createApplication(options = {}) {
     );
   }
 
+  bot.on('message', async (ctx, next) => {
+    const adminId = String(ctx.from?.id || '');
+    if (!config.adminIds.has(adminId)) return next();
+
+    const shared = ctx.message.chat_shared;
+    if (shared) {
+      const pending = pendingChannelSelections.get(adminId);
+      if (!pending || pending.requestId !== shared.request_id) {
+        await ctx.reply('Kanal tanlash so‘rovi eskirgan. /admin panelidan qayta boshlang.', Markup.removeKeyboard());
+        return;
+      }
+      pendingChannelSelections.delete(adminId);
+      try {
+        const chatId = String(shared.chat_id);
+        const [chat, identity, adminMember] = await Promise.all([
+          bot.telegram.getChat(chatId),
+          bot.telegram.getMe(),
+          bot.telegram.getChatMember(chatId, Number(adminId)),
+        ]);
+        if (!['administrator', 'creator'].includes(adminMember.status)) {
+          throw new Error('Tanlangan kanalda siz administrator emassiz.');
+        }
+        const botMember = await bot.telegram.getChatMember(chatId, identity.id);
+        if (!['administrator', 'creator'].includes(botMember.status)) {
+          throw new Error('A’zolikni tekshirish uchun bot tanlangan kanalda admin bo‘lishi kerak.');
+        }
+        let url = chat.username ? `https://t.me/${chat.username}` : chat.invite_link;
+        if (!url) {
+          try {
+            url = await bot.telegram.exportChatInviteLink(chatId);
+          } catch (error) {
+            console.error(`Could not create an invite link for channel ${chatId}:`, error.message);
+            throw new Error('Yopiq kanal uchun taklif havolasini olish imkonsiz. Botga taklif havolasi yaratish huquqini bering.');
+          }
+        }
+        const duplicate = await Task.exists({
+          type: 'channel',
+          chatId,
+          requiredForReferral: pending.kind === 'required',
+        });
+        if (duplicate) {
+          await ctx.reply('Bu kanal ushbu turda allaqachon qo‘shilgan.', Markup.removeKeyboard());
+          await showChannelSettings(ctx);
+          return;
+        }
+        const requiredForReferral = pending.kind === 'required';
+        const id = `${requiredForReferral ? 'required' : 'bonus'}_${crypto.randomBytes(8).toString('hex')}`;
+        await Task.create({
+          _id: id,
+          title: String(chat.title || 'Telegram kanali').slice(0, 120),
+          description: requiredForReferral ? 'Do‘st taklifini tasdiqlash uchun obuna bo‘ling' : 'Kanalga obuna bo‘ling',
+          icon: '📣',
+          type: 'channel',
+          reward: requiredForReferral ? 1 : config.channelReward,
+          url,
+          chatId,
+          requiredForReferral,
+          enabled: true,
+          position: requiredForReferral ? -10 : 10,
+        });
+        await ctx.reply(
+          `${requiredForReferral ? 'Majburiy' : 'Bonus'} kanal qo‘shildi: ${chat.title}`,
+          Markup.removeKeyboard(),
+        );
+        await showChannelSettings(ctx);
+      } catch (error) {
+        console.error('Could not add selected channel:', error.message);
+        await ctx.reply(error.message, Markup.removeKeyboard());
+      }
+      return;
+    }
+
+    if (ctx.message.text === 'Bekor qilish' && pendingChannelSelections.has(adminId)) {
+      pendingChannelSelections.delete(adminId);
+      await ctx.reply('Kanal tanlash bekor qilindi.', Markup.removeKeyboard());
+      return;
+    }
+
+    const pending = pendingAdminInputs.get(adminId);
+    if (!pending || ctx.message.reply_to_message?.message_id !== pending.promptMessageId || !ctx.message.text) {
+      return next();
+    }
+    pendingAdminInputs.delete(adminId);
+    const value = ctx.message.text.trim();
+    if (pending.kind === 'instagram') {
+      let url;
+      try {
+        url = new URL(value);
+        if (url.protocol !== 'https:' || !/(^|\.)instagram\.com$/i.test(url.hostname)) throw new Error();
+      } catch {
+        await ctx.reply('Instagram havolasi noto‘g‘ri. Masalan: https://www.instagram.com/sahifa/');
+        return;
+      }
+      await saveSetting('instagramUrl', url.href);
+      await Task.updateOne({ _id: 'instagram' }, { $set: { url: url.href, enabled: true } });
+      await ctx.reply('Instagram havolasi saqlandi.');
+      await showSettings(ctx);
+      return;
+    }
+    const amount = Number(value.replace(/[,_\s]/g, ''));
+    if (!Number.isSafeInteger(amount) || amount < 1 || amount > 1_000_000_000) {
+      await ctx.reply('Ball/mablag‘ 1 dan 1 000 000 000 gacha butun son bo‘lishi kerak.');
+      return;
+    }
+    if (pending.kind === 'task_reward') {
+      const task = await Task.findById(pending.taskId);
+      if (!task) {
+        await ctx.reply('Topshiriq topilmadi.');
+        return;
+      }
+      task.reward = amount;
+      await task.save();
+      await ctx.reply(`“${task.title}” topshirig‘i endi ${amount} coin beradi.`);
+      await showTaskSettings(ctx);
+      return;
+    }
+    const settingKeys = new Set([
+      'weeklyPrize', 'refReward', 'refBonus', 'channelReward', 'instagramReward',
+      'invite3Reward', 'dailyBonusBase', 'dailyStreakBonus',
+    ]);
+    if (!settingKeys.has(pending.key)) {
+      await ctx.reply('Noma’lum sozlama.');
+      return;
+    }
+    await saveSetting(pending.key, amount);
+    const taskId = {
+      channelReward: 'channel',
+      instagramReward: 'instagram',
+      invite3Reward: 'invite3',
+    }[pending.key];
+    if (taskId) await Task.updateOne({ _id: taskId }, { $set: { reward: amount } });
+    await ctx.reply('Sozlama MongoDB’da saqlandi.');
+    await showSettings(ctx);
+  });
+
   bot.catch((error, ctx) => {
     console.error(`Bot error on ${ctx.updateType}:`, error);
+  });
+
+  bot.on('chat_member', async (ctx) => {
+    const update = ctx.update.chat_member;
+    if (!isActiveChatMember(update.new_chat_member)) return;
+    const user = await User.findById(String(update.new_chat_member.user.id)).lean();
+    if (!user?.invitedBy || user.referralRewarded || !user.verified) return;
+    try {
+      await awardReferral(user);
+    } catch (error) {
+      console.error(`Could not process referral after channel join for ${user._id}:`, error);
+    }
   });
 
   bot.start(async (ctx) => {
@@ -579,6 +857,10 @@ function createApplication(options = {}) {
   });
 
   bot.command('admin', adminOnly, showAdminPanel);
+  bot.action('admin_home', adminOnly, async (ctx) => {
+    await ctx.answerCbQuery();
+    await showAdminPanel(ctx);
+  });
   bot.command('setprize', adminOnly, async (ctx) => {
     const amount = Number((ctx.message.text.split(/\s+/)[1] || '').replace(/[,_\s]/g, ''));
     if (!Number.isSafeInteger(amount) || amount < 1 || amount > 1_000_000_000) {
@@ -635,14 +917,16 @@ function createApplication(options = {}) {
 
   bot.command('setinstagram', adminOnly, async (ctx) => {
     const url = ctx.message.text.replace(/^\/setinstagram(?:@\w+)?\s*/i, '').trim();
+    let parsed;
     try {
-      if (new URL(url).protocol !== 'https:') throw new Error('HTTPS required');
+      parsed = new URL(url);
+      if (parsed.protocol !== 'https:' || !/(^|\.)instagram\.com$/i.test(parsed.hostname)) throw new Error('Instagram URL required');
     } catch {
       await ctx.reply('Format: /setinstagram https://instagram.com/sahifa');
       return;
     }
-    await saveSetting('instagramUrl', url);
-    await Task.updateOne({ _id: 'instagram' }, { $set: { url, enabled: true } });
+    await saveSetting('instagramUrl', parsed.href);
+    await Task.updateOne({ _id: 'instagram' }, { $set: { url: parsed.href, enabled: true } });
     await ctx.reply('Instagram topshirig‘i yangilandi va MongoDB’da saqlandi.');
   });
 
@@ -730,28 +1014,120 @@ function createApplication(options = {}) {
 
   bot.action('admin_tasks', adminOnly, async (ctx) => {
     await ctx.answerCbQuery();
-    const tasks = await Task.find().sort({ position: 1, _id: 1 }).lean();
-    if (!tasks.length) {
-      await ctx.reply('Topshiriqlar topilmadi.');
+    await showTaskSettings(ctx);
+  });
+
+  bot.action(/^admin_tasks_(\d+)$/, adminOnly, async (ctx) => {
+    await ctx.answerCbQuery();
+    await showTaskSettings(ctx, Number(ctx.match[1]));
+  });
+
+  bot.action('admin_channels', adminOnly, async (ctx) => {
+    await ctx.answerCbQuery();
+    await showChannelSettings(ctx);
+  });
+
+  bot.action(/^admin_channels_(\d+)$/, adminOnly, async (ctx) => {
+    await ctx.answerCbQuery();
+    await showChannelSettings(ctx, Number(ctx.match[1]));
+  });
+
+  bot.action(/^channel_add_(required|bonus)$/, adminOnly, async (ctx) => {
+    await ctx.answerCbQuery();
+    const requestId = crypto.randomInt(1, 2_147_483_647);
+    const kind = ctx.match[1];
+    pendingChannelSelections.set(String(ctx.from.id), { kind, requestId });
+    await ctx.reply(
+      `Telegram ro‘yxatidan ${kind === 'required' ? 'majburiy' : 'bonus'} kanalni tanlang. Siz kanal admini, bot esa kanal a’zosi bo‘lishi kerak.`,
+      Markup.keyboard([[
+        Markup.button.channelRequest('📢 Kanalni tanlash', requestId, {
+          user_administrator_rights: { can_manage_chat: true },
+          bot_is_member: true,
+        }),
+      ], ['Bekor qilish']]).resize().oneTime(),
+    );
+  });
+
+  bot.action(/^channel_info_([a-z0-9_-]{2,40})$/, adminOnly, async (ctx) => {
+    await ctx.answerCbQuery();
+    const channel = await Task.findOne({ _id: ctx.match[1], type: 'channel' }).lean();
+    if (!channel) {
+      await ctx.reply('Kanal topilmadi.');
       return;
     }
-    for (const task of tasks) {
-      await ctx.reply(
-        `${task.enabled ? '🟢' : '⚫'} ${task.title} · ${task.reward} coin · ${task.type}`,
-        Markup.inlineKeyboard([[
-          Markup.button.callback(task.enabled ? 'O‘chirish' : 'Yoqish', `task_toggle_${task._id}`),
-        ]]),
-      );
+    const rows = [[Markup.button.callback(
+      channel.enabled ? '⚫ O‘chirish' : '🟢 Yoqish',
+      `task_toggle_${channel._id}`,
+    )]];
+    if (!channel.requiredForReferral) {
+      rows.push([Markup.button.callback('✏️ Ballni o‘zgartirish', `task_reward_${channel._id}`)]);
     }
-    await ctx.reply('Yangi topshiriq qo‘shish: /task_add id ball channel|manual|referrals | Nomi | URL | CHAT_ID\nTopshiriqni tahrirlash uchun shu ID bilan /task_add buyrug‘ini takrorlang.');
+    rows.push([Markup.button.callback('🗑 Kanalni ro‘yxatdan olib tashlash', `channel_delete_${channel._id}`)]);
+    rows.push([Markup.button.callback('⬅️ Kanallar', 'admin_channels')]);
+    await ctx.reply(
+      `${channel.requiredForReferral ? '🔒 Majburiy kanal' : '🎁 Bonus kanal'}\n${channel.title}\nHolat: ${channel.enabled ? 'Yoqilgan' : 'O‘chirilgan'}${channel.requiredForReferral ? '' : `\nMukofot: ${channel.reward} coin`}`,
+      Markup.inlineKeyboard(rows),
+    );
+  });
+
+  bot.action(/^channel_delete_([a-z0-9_-]{2,40})$/, adminOnly, async (ctx) => {
+    await ctx.answerCbQuery();
+    const id = ctx.match[1];
+    const result = await Task.deleteOne({ _id: id, type: 'channel' });
+    if (!result.deletedCount) {
+      await ctx.reply('Kanal topilmadi.');
+      return;
+    }
+    await Claim.deleteMany({ taskId: id });
+    await ctx.reply('Kanal sozlamalardan olib tashlandi.');
+    await showChannelSettings(ctx);
   });
 
   bot.action('admin_settings', adminOnly, async (ctx) => {
     await ctx.answerCbQuery();
-    await ctx.reply(
-      `🔧 O‘yin sozlamalari (MongoDB)\n\nHaftalik sovrin: ${Number(config.weeklyPrize).toLocaleString('uz-UZ')} so‘m\nTaklif qiluvchiga: ${config.refReward} ball\nTaklif bilan kelganga: ${config.refBonus} ball\nKanal topshirig‘i: ${config.channelReward} ball\nInstagram topshirig‘i: ${config.instagramReward} ball\n3 do‘st topshirig‘i: ${config.invite3Reward} ball\nKunlik bonus: ${config.dailyBonusBase} + ketma-ket kuniga ${config.dailyStreakBonus} ball\nKanal: ${config.channelChatId || 'sozlanmagan'}\n\n/setprize 100000\n/setreward ref|bonus|channel|instagram|invite3|daily|streak BALL\n/setchannel @kanal | https://t.me/kanal\n/setinstagram https://instagram.com/sahifa\n/task_add id ball channel|manual|referrals | Nomi | URL | CHAT_ID`,
-      adminKeyboard(),
-    );
+    await showSettings(ctx);
+  });
+
+  bot.action(/^setting_edit_(weeklyPrize|refReward|refBonus|channelReward|instagramReward|invite3Reward|dailyBonusBase|dailyStreakBonus)$/, adminOnly, async (ctx) => {
+    await ctx.answerCbQuery();
+    const key = ctx.match[1];
+    const title = {
+      weeklyPrize: 'Haftalik sovrin miqdori (so‘m)',
+      refReward: 'Taklif qiluvchi bonus balli',
+      refBonus: 'Taklif bilan kelgan bonus balli',
+      channelReward: 'Yangi bonus kanal uchun ball',
+      instagramReward: 'Instagram topshirig‘i balli',
+      invite3Reward: 'Do‘st taklif qilish topshirig‘i balli',
+      dailyBonusBase: 'Kunlik asosiy bonus balli',
+      dailyStreakBonus: 'Ketma-ket kunlik qo‘shimcha ball',
+    }[key];
+    await promptAdminInput(ctx, {
+      kind: 'setting',
+      key,
+      prompt: `${title}ni yuboring (faqat musbat butun son).`,
+    });
+  });
+
+  bot.action('setting_edit_instagramUrl', adminOnly, async (ctx) => {
+    await ctx.answerCbQuery();
+    await promptAdminInput(ctx, {
+      kind: 'instagram',
+      prompt: 'Instagram sahifa havolasini yuboring (https://www.instagram.com/...).',
+    });
+  });
+
+  bot.action(/^task_reward_([a-z0-9_-]{2,40})$/, adminOnly, async (ctx) => {
+    await ctx.answerCbQuery();
+    const task = await Task.findById(ctx.match[1]).lean();
+    if (!task || (task.type === 'channel' && task.requiredForReferral)) {
+      await ctx.reply('Bu topshiriq uchun ball sozlab bo‘lmaydi.');
+      return;
+    }
+    await promptAdminInput(ctx, {
+      kind: 'task_reward',
+      taskId: task._id,
+      prompt: `“${task.title}” topshirig‘i uchun yangi ball miqdorini yuboring.`,
+    });
   });
 
   bot.action(/^task_toggle_([a-z0-9_-]{2,40})$/, adminOnly, async (ctx) => {
@@ -764,6 +1140,8 @@ function createApplication(options = {}) {
     task.enabled = !task.enabled;
     await task.save();
     await ctx.reply(`${task.title}: ${task.enabled ? 'yoqildi' : 'o‘chirildi'}.`);
+    if (task.type === 'channel') await showChannelSettings(ctx);
+    else await showTaskSettings(ctx);
   });
 
   bot.action(/^claim_(approve|reject)_([a-f0-9]{24})$/, adminOnly, async (ctx) => {
@@ -889,16 +1267,20 @@ function createApplication(options = {}) {
         console.error('Channel membership check failed:', error.message);
         throw new HttpError(503, 'Bot kanal a’zoligini tekshira olmadi. Bot kanal admini ekanini tekshiring.');
       }
-      const joined = ['member', 'administrator', 'creator'].includes(member.status) ||
-        (member.status === 'restricted' && member.is_member);
-      if (!joined) throw new HttpError(403, 'Avval ko‘rsatilgan kanalga a’zo bo‘ling.');
-      await addPoints(userId, task.reward, 'task', `task:${userId}:${task._id}`, task.title);
+      if (!isActiveChatMember(member)) throw new HttpError(403, 'Avval ko‘rsatilgan kanalga a’zo bo‘ling.');
+      if (!task.requiredForReferral) {
+        await addPoints(userId, task.reward, 'task', `task:${userId}:${task._id}`, task.title);
+      }
       await Claim.findOneAndUpdate(
         { userId, taskId: task._id },
         { $set: { status: 'approved', reviewedAt: new Date() }, $setOnInsert: { userId, taskId: task._id } },
         { upsert: true },
       );
-      res.json({ ok: true, status: 'approved', reward: task.reward });
+      if (task.requiredForReferral) {
+        const user = await User.findById(userId).lean();
+        await awardReferral(user);
+      }
+      res.json({ ok: true, status: 'approved', reward: task.requiredForReferral ? 0 : task.reward });
       return;
     }
 
@@ -1034,7 +1416,7 @@ async function start() {
     timer.unref();
   };
   scheduleWeeklyAward();
-  bot.launch().catch((error) => {
+  bot.launch({ allowedUpdates: ['message', 'callback_query', 'chat_member'] }).catch((error) => {
     console.error('Telegram bot stopped:', error);
     process.exitCode = 1;
   });
@@ -1059,4 +1441,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { createApplication, getTashkentDate, getWeekRange, verifyTelegramInitData };
+module.exports = { createApplication, getTashkentDate, getWeekRange, isActiveChatMember, verifyTelegramInitData };

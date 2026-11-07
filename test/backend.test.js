@@ -7,6 +7,7 @@ const {
   createApplication,
   getTashkentDate,
   getWeekRange,
+  isActiveChatMember,
   verifyTelegramInitData,
 } = require('../server');
 
@@ -61,6 +62,16 @@ test('weekly boundaries follow the Tashkent Monday-to-Monday week', () => {
   assert.equal(range.start.toISOString(), '2026-11-01T19:00:00.000Z');
   assert.equal(range.end.toISOString(), '2026-11-08T19:00:00.000Z');
   assert.equal(getTashkentDate(new Date('2026-11-07T19:00:00Z')), '2026-11-08');
+});
+
+test('Telegram channel membership accepts active members and rejects left users', () => {
+  assert.equal(isActiveChatMember({ status: 'member' }), true);
+  assert.equal(isActiveChatMember({ status: 'administrator' }), true);
+  assert.equal(isActiveChatMember({ status: 'creator' }), true);
+  assert.equal(isActiveChatMember({ status: 'restricted', is_member: true }), true);
+  assert.equal(isActiveChatMember({ status: 'restricted', is_member: false }), false);
+  assert.equal(isActiveChatMember({ status: 'left' }), false);
+  assert.equal(isActiveChatMember({ status: 'kicked' }), false);
 });
 
 test('.env.example contains only the four deployment secrets/settings', () => {

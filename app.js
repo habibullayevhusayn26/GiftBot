@@ -280,8 +280,8 @@ function renderHome() {
   $('#taskList').innerHTML = demo.tasks.map((t) => `
     <div class="item">
       <span class="ico" style="--c:${t.color}">${icon(t.icon)}</span>
-      <div class="txt"><b>${esc(t.title)}</b><span>${esc(t.sub)} · +${fmt(t.reward)} coin${t.type === 'referrals' ? ` · ${t.progress}/${t.requiredCount}` : ''}</span>${t.url ? `<a class="task-link" href="${esc(t.url)}" target="_blank" rel="noopener noreferrer">Topshiriqni ochish ↗</a>` : ''}${LIVE_MODE && t.type === 'manual' && !t.done && !t.pending ? '<input class="task-proof" data-proof type="text" maxlength="300" placeholder="Instagram username yoki havola" aria-label="Topshiriq isboti">' : ''}</div>
-      <button class="pill ${t.done ? 'done' : ''}" data-task="${esc(t.id)}" ${t.done || t.pending || (t.type === 'referrals' && !t.canClaim) ? 'disabled' : ''}>${t.done ? icon('✅') : t.pending ? 'Kutilmoqda' : t.type === 'manual' ? 'Tasdiqqa yuborish' : t.type === 'referrals' && !t.canClaim ? 'Do‘st taklif qiling' : 'Tekshirish'}</button>
+      <div class="txt"><b>${esc(t.title)}</b><span>${esc(t.sub)} · ${t.requiredForReferral ? 'Majburiy obuna' : `+${fmt(t.reward)} coin`}${t.type === 'referrals' ? ` · ${t.progress}/${t.requiredCount}` : ''}</span>${t.url ? `<a class="task-link" href="${esc(t.url)}" target="_blank" rel="noopener noreferrer">Topshiriqni ochish ↗</a>` : ''}${LIVE_MODE && t.type === 'manual' && !t.done && !t.pending ? '<input class="task-proof" data-proof type="text" maxlength="300" placeholder="Instagram username yoki havola" aria-label="Topshiriq isboti">' : ''}</div>
+      <button class="pill ${t.done ? 'done' : ''}" data-task="${esc(t.id)}" ${t.done || t.pending || (t.type === 'referrals' && !t.canClaim) ? 'disabled' : ''}>${t.done ? icon('✅') : t.pending ? 'Kutilmoqda' : t.requiredForReferral ? 'Obunani tekshirish' : t.type === 'manual' ? 'Tasdiqqa yuborish' : t.type === 'referrals' && !t.canClaim ? 'Do‘st taklif qiling' : 'Tekshirish'}</button>
     </div>`).join('');
   mountAnimations(btn);
   mountAnimations($('#taskList'));
@@ -425,7 +425,10 @@ $('#taskList').addEventListener('click', async (e) => {
       });
       await refreshLiveData();
       if (result.status === 'pending') toast('Topshiriq admin tasdig‘iga yuborildi.');
-      else { haptic('success'); toast(`+${fmt(result.reward)} coin`); }
+      else {
+        haptic('success');
+        toast(result.reward ? `+${fmt(result.reward)} coin` : 'Obuna tasdiqlandi.');
+      }
       renderHome();
     } catch (error) {
       toast(error.message);
