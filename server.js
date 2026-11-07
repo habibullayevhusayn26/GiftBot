@@ -725,6 +725,8 @@ const promoSchema = new mongoose.Schema({
   usedCount: { type: Number, default: 0 },
   enabled: { type: Boolean, default: true },
   createdBy: { type: String, required: true },
+  announcementChatId: { type: String, default: '' },
+  announcementMessageId: { type: Number, default: null },
 }, { timestamps: true, versionKey: false });
 
 const promoRedemptionSchema = new mongoose.Schema({
@@ -833,6 +835,7 @@ function createApplication(options = {}) {
   const pendingAdminInputs = new Map();
   const pendingChannelSelections = new Map();
   const referralGiftCatalogs = new Map();
+  const promoAnnouncementUpdates = new Map();
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
   app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
@@ -1050,7 +1053,61 @@ function createApplication(options = {}) {
 
     await addPoints(userId, promo.reward, 'promo', `promo:${code}:${userId}`, `Promo-kod ${code}`);
     await PromoRedemption.updateOne({ _id: redemptionId }, { $set: { status: 'redeemed' } });
-    return { code, reward: promo.reward };
+    if (promo.announcementChatId && promo.announcementMessageId) {
+      try {
+        await updatePromoAnnouncement(promo);
+      } catch (error) {
+        console.error(`Promo ${code} was redeemed but its channel announcement could not be updated:`, error);
+      }
+    }
+    return {
+      code,
+      reward: promo.reward,
+      usedCount: reserved.usedCount,
+      redemptionLimit: promo.redemptionLimit,
+    };
+  }
+
+  function promoAnnouncementText(promo) {
+    return `🆕 Promo-kod: ${promo._id}\n🎁 Mukofot: ${promo.reward} coin\n` +
+      `✅ Ishlatildi: ${promo.usedCount}/${promo.redemptionLimit}\n` +
+      `Koddan foydalanish uchun Mini-ilovani oching va promo-kodni kiriting.`;
+  }
+
+  function promoAnnouncementKeyboard(promo) {
+    if (!config.botUsername) throw new Error('Telegram bot username is unavailable for the promo link.');
+    const url = new URL(`https://t.me/${config.botUsername}`);
+    url.searchParams.set('startapp', `promo_${promo._id}`);
+    return Markup.inlineKeyboard([[
+      { ...Markup.button.url('🎁 Promo-kodni ishlatish', url.href), style: 'success' },
+    ]]);
+  }
+
+  async function updatePromoAnnouncement(promo) {
+    const previous = promoAnnouncementUpdates.get(promo._id) || Promise.resolve();
+    const update = previous.catch(() => {}).then(async () => {
+      const latest = await Promo.findById(promo._id)
+        .select('reward usedCount redemptionLimit announcementChatId announcementMessageId')
+        .lean();
+      if (!latest?.announcementChatId || !latest.announcementMessageId) return false;
+      await bot.telegram.editMessageText(
+        latest.announcementChatId,
+        latest.announcementMessageId,
+        undefined,
+        toTelegramHtml(promoAnnouncementText({ ...latest, _id: promo._id })),
+        {
+          parse_mode: 'HTML',
+          reply_markup: promoAnnouncementKeyboard({ _id: promo._id }).reply_markup,
+        },
+      );
+      return true;
+    });
+    promoAnnouncementUpdates.set(promo._id, update);
+    try {
+      return await update;
+    } finally {
+      if (promoAnnouncementUpdates.get(promo._id) === update) promoAnnouncementUpdates.delete(promo._id);
+    }
   }
 
   async function isMemberOfRequiredChannels(userId) {
@@ -1711,7 +1768,6 @@ function createApplication(options = {}) {
       `promo_channel_${channel._id}`,
     )]);
     if (config.promoChannelId) rows.push([Markup.button.callback('🗑 E’lon kanalini tozalash', 'promo_channel_clear')]);
-    rows.push([Markup.button.callback(`🔢 Kod limiti: ${config.promoRedemptionLimit}`, 'setting_edit_promoRedemptionLimit')]);
     rows.push([Markup.button.callback('➕ Promo-kod yaratish', 'promo_create')]);
     rows.push([Markup.button.callback('⬅️ Admin panel', 'admin_home')]);
     const recent = promos.length
@@ -1721,8 +1777,7 @@ function createApplication(options = {}) {
       : '';
     await ctx.reply(
       `🆕 Promo-kodlar\nE’lon kanali: ${selectedChannel?.title || 'tanlanmagan'}\n` +
-      `Har bir kod uchun ishlatish limiti: ${config.promoRedemptionLimit}\n` +
-      `Kanal tanlang, so‘ng kod yarating. Kod kanalda e’lon qilinadi; foydalanuvchi botga /promo KOD yuboradi.` +
+      `Kanal tanlang, so‘ng kod yarating. Yaratishda kod limiti va coin mukofotini alohida kiritasiz.` +
       recent,
       Markup.inlineKeyboard(rows),
     );
@@ -2071,24 +2126,65 @@ function createApplication(options = {}) {
       await showAdminUser(ctx, user._id);
       return;
     }
-    if (pending.kind === 'promo_create') {
-      const parts = value.split(/\s+/);
-      if (parts.length !== 2) {
-        await ctx.reply('Format: KOD COIN (masalan, YANGI2026 250). Qaytadan boshlang.');
-        return;
-      }
+    if (pending.kind === 'promo_create_code') {
       let code;
       try {
-        code = normalizePromoCode(parts[0]);
+        code = normalizePromoCode(value);
       } catch (error) {
         await ctx.reply(error.message);
+        await promptAdminInput(ctx, {
+          kind: 'promo_create_code',
+          prompt: 'Promo-kod nomini yuboring (4–32 belgi, masalan YANGI2026). Bekor qilish uchun “Bekor qilish” deb yozing.',
+        });
         return;
       }
-      const reward = Number(parts[1].replace(/[,_]/g, ''));
+      if (await Promo.exists({ _id: code })) {
+        await ctx.reply('Bu promo-kod allaqachon yaratilgan. Boshqa kod tanlang.');
+        await promptAdminInput(ctx, {
+          kind: 'promo_create_code',
+          prompt: 'Yangi promo-kod nomini yuboring (4–32 belgi).',
+        });
+        return;
+      }
+      await promptAdminInput(ctx, {
+        kind: 'promo_create_limit',
+        code,
+        prompt: `${code} kodi uchun ishlatish limitini yuboring (1–1 000 000, butun son).`,
+      });
+      return;
+    }
+    if (pending.kind === 'promo_create_limit') {
+      const redemptionLimit = Number(value.replace(/[,_\s]/g, ''));
+      if (!Number.isSafeInteger(redemptionLimit) || redemptionLimit < 1 || redemptionLimit > 1_000_000) {
+        await ctx.reply('Ishlatish limiti 1 dan 1 000 000 gacha butun son bo‘lishi kerak.');
+        await promptAdminInput(ctx, {
+          kind: 'promo_create_limit',
+          code: pending.code,
+          prompt: `${pending.code} kodi uchun ishlatish limitini yuboring (1–1 000 000).`,
+        });
+        return;
+      }
+      await promptAdminInput(ctx, {
+        kind: 'promo_create_reward',
+        code: pending.code,
+        redemptionLimit,
+        prompt: `${pending.code} kodi uchun beriladigan coin miqdorini yuboring (1–1 000 000 000).`,
+      });
+      return;
+    }
+    if (pending.kind === 'promo_create_reward') {
+      const reward = Number(value.replace(/[,_\s]/g, ''));
       if (!Number.isSafeInteger(reward) || reward < 1 || reward > 1_000_000_000) {
         await ctx.reply('Coin mukofoti 1 dan 1 000 000 000 gacha butun son bo‘lishi kerak.');
+        await promptAdminInput(ctx, {
+          kind: 'promo_create_reward',
+          code: pending.code,
+          redemptionLimit: pending.redemptionLimit,
+          prompt: `${pending.code} kodi uchun beriladigan coin miqdorini yuboring (1–1 000 000 000).`,
+        });
         return;
       }
+      const { code, redemptionLimit } = pending;
       const channel = await Task.findOne({ _id: config.promoChannelId, type: 'channel', enabled: true }).lean();
       if (!channel) {
         await ctx.reply('Promo e’lon kanali endi faol emas. Admin panelida qayta tanlang.');
@@ -2098,7 +2194,7 @@ function createApplication(options = {}) {
         await Promo.create({
           _id: code,
           reward,
-          redemptionLimit: config.promoRedemptionLimit,
+          redemptionLimit,
           createdBy: adminId,
         });
       } catch (error) {
@@ -2109,11 +2205,14 @@ function createApplication(options = {}) {
         throw error;
       }
       try {
-        await bot.telegram.sendMessage(
+        const announcement = await bot.telegram.sendMessage(
           channel.chatId,
-          `🆕 Promo-kod: ${code}\n🎁 Mukofot: ${reward} coin\n` +
-          `Foydalanish limiti: ${config.promoRedemptionLimit} ta.\n` +
-          `Koddan foydalanish uchun botga /promo ${code} yuboring.`,
+          promoAnnouncementText({ _id: code, reward, usedCount: 0, redemptionLimit }),
+          promoAnnouncementKeyboard({ _id: code }),
+        );
+        await Promo.updateOne(
+          { _id: code },
+          { $set: { announcementChatId: String(channel.chatId), announcementMessageId: announcement.message_id } },
         );
       } catch (error) {
         await Promo.updateOne({ _id: code }, { $set: { enabled: false } });
@@ -2255,7 +2354,10 @@ function createApplication(options = {}) {
     }
     try {
       const result = await redeemPromoCode(userId, code);
-      await ctx.reply(`Promo-kod qabul qilindi! +${result.reward} coin balansingizga qo‘shildi.`);
+      await ctx.reply(
+        `Promo-kod qabul qilindi! +${result.reward} coin balansingizga qo‘shildi.\n` +
+        `Ishlatildi: ${result.usedCount}/${result.redemptionLimit}.`,
+      );
     } catch (error) {
       if (!(error instanceof HttpError)) throw error;
       await ctx.reply(error.message);
@@ -2370,8 +2472,8 @@ function createApplication(options = {}) {
       return;
     }
     await promptAdminInput(ctx, {
-      kind: 'promo_create',
-      prompt: 'Yangi promo-kod va coin mukofotini yuboring: KOD COIN (masalan, YANGI2026 250).',
+      kind: 'promo_create_code',
+      prompt: 'Yangi promo-kod nomini yuboring (4–32 belgi, masalan YANGI2026). Bekor qilish uchun “Bekor qilish” deb yozing.',
     });
   });
   bot.action('admin_broadcast', adminOnly, async (ctx) => {
@@ -2819,6 +2921,12 @@ function createApplication(options = {}) {
     await User.updateOne({ _id: user._id }, { $set: { verified: true } });
     await awardReferral({ ...user.toObject(), verified: true });
     res.json({ ok: true });
+  }));
+
+  app.post('/api/promos/redeem', authenticate, requireVerified, asyncRoute(async (req, res) => {
+    if (typeof req.body?.code !== 'string') throw new HttpError(400, 'Promo-kodni kiriting.');
+    const result = await redeemPromoCode(String(req.telegram.id), req.body.code);
+    res.json({ ok: true, ...result });
   }));
 
   app.post('/api/donations/invoice', authenticate, requireVerified, asyncRoute(async (req, res) => {

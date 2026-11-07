@@ -268,6 +268,10 @@ button { font-family: inherit; border: 0; background: none; color: inherit; curs
 .profile { text-align: center; }
 .profile h3 { margin: 0; font-size: 24px; }
 .profile p { margin: 3px 0 0; color: var(--label2); }
+.promo-card { margin-top: 16px; }
+.promo-icon { color: #c69aff; background: rgba(169,107,255,.14); }
+.promo-card .glass-btn { display: flex; align-items: center; justify-content: center; gap: 5px; margin-top: 12px; }
+.promo-card .glass-btn .emoji-icon { width: 19px; height: 19px; font-size: 19px; }
 .donation { margin-top: 16px; }
 .donation-heading { display: flex; align-items: center; gap: 12px; }
 .donation-icon { display: grid; width: 46px; height: 46px; flex: none; place-items: center; border-radius: 15px; color: #ffd166; background: rgba(255,209,102,.12); }

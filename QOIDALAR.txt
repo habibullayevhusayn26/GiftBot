@@ -29,10 +29,13 @@ VIRAL MINI-ILOVASI — FAQ VA QOIDALAR
 - Sovrin yuborilgach, admin panelida “Pul yuborildi” holatini belgilaydi.
 
 5. Promo-kodlar
-- Faol promo-kod va uning coin mukofoti e’lon kanalida ko‘rsatiladi.
-- Foydalanish uchun botga /promo KOD yuboring.
+- Faol promo-kod, coin mukofoti va necha marta ishlatilgani e’lon kanalida ko‘rsatiladi.
+- Kanal e’lonidagi “Promo-kodni ishlatish” tugmasi Mini-ilovani promo-kod maydoni ochilgan holda ishga tushiradi.
+- Promo-kodni Mini-ilovadagi Profil bo‘limiga kiriting. Avval Mini-ilova tekshiruvidan o‘tish kerak.
+- Bot chatida /promo KOD buyrug‘i ham ishlaydi.
 - Har bir foydalanuvchi bir koddan faqat bir marta foydalanishi mumkin.
-- Kod umumiy foydalanish limiti tugaguncha ishlaydi. Admin limitni boshqaradi.
+- Har bir kodning umumiy limiti va coin mukofotini admin kod yaratishda belgilaydi.
+- Har bir muvaffaqiyatli ishlatishdan so‘ng kanal e’lonidagi ishlatilgan kodlar soni yangilanadi.
 - Yaroqsiz, o‘chirilgan yoki limiti tugagan kod coin bermaydi.
 
 6. Topshiriqlar va profil
@@ -55,8 +58,8 @@ A: Taklif qilingan do‘st tekshiruvdan o‘tib, kamida bitta topshiriqni bajarg
 Q: Coinni pulga almashtirish mumkinmi?
 A: Yo‘q. Faqat haftalik sovrin alohida tartibda beriladi; u admin tomonidan botdan tashqarida yuboriladi.
 
-Q: Promo-kodni qayerga yuboraman?
-A: Bot chatida /promo KOD buyrug‘i orqali.
+Q: Promo-kodni qayerda ishlataman?
+A: Kanal e’lonidagi tugmani bosing yoki Profil bo‘limidagi promo-kod maydonidan foydalaning. Bot chatida /promo KOD ham ishlaydi.
 
 Q: Reytingda shubhali hisob ko‘rinsa nima bo‘ladi?
 A: G‘olib e’lonidan oldin admin referralni ko‘rib chiqadi. Tekshiruv tugaguncha e’lon kechikishi mumkin.

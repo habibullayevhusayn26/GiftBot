@@ -642,6 +642,56 @@ async function openRulesPage() {
 $('#rulesBtn').addEventListener('click', () => { haptic('light'); void openRulesPage(); });
 $('#rulesBack').addEventListener('click', () => go('me'));
 $('#rulesRetry').addEventListener('click', () => { void openRulesPage(); });
+async function redeemPromo() {
+  const input = $('#promoCode');
+  const button = $('#redeemPromoBtn');
+  const code = input.value.trim().toUpperCase();
+  if (!code) {
+    toast('Promo-kodni kiriting.');
+    input.focus();
+    return;
+  }
+  if (!LIVE_MODE) {
+    toast('Promo-kodni Telegram Mini-ilovada ishlating.');
+    return;
+  }
+  button.disabled = true;
+  try {
+    const result = await api('/promos/redeem', {
+      method: 'POST',
+      body: JSON.stringify({ code }),
+    });
+    input.value = '';
+    haptic('success');
+    toast(`Promo-kod qabul qilindi! +${fmt(result.reward)} coin`);
+    await refreshLiveData();
+    renderHome();
+  } catch (error) {
+    haptic('error');
+    toast(error.message);
+  } finally {
+    button.disabled = false;
+  }
+}
+$('#redeemPromoBtn').addEventListener('click', () => { haptic('light'); void redeemPromo(); });
+$('#promoCode').addEventListener('keydown', (event) => {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    void redeemPromo();
+  }
+});
+function openPromoFromLaunch() {
+  const queryCode = new URLSearchParams(window.location.search).get('promo');
+  const startParam = tg?.initDataUnsafe?.start_param || '';
+  const launchCode = queryCode || (startParam.startsWith('promo_') ? startParam.slice(6) : '');
+  if (!launchCode) return;
+  go('me', true);
+  $('#promoCode').value = launchCode.slice(0, 32);
+  setTimeout(() => {
+    $('#promoCard').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    $('#promoCode').focus({ preventScroll: true });
+  }, 200);
+}
 $('#supportBtn').addEventListener('click', () => {
   haptic('light');
   if (tg?.openTelegramLink) tg.openTelegramLink(`https://t.me/${CONFIG.BOT_USERNAME}`); else toast('Yordam: tez orada');
@@ -853,11 +903,13 @@ async function startApp() {
       renderPrize();
       mountAnimations(document);
       go('home', true);
+      openPromoFromLaunch();
       await window.finishLoadingIntro?.();
       return;
     }
     if (isVerified()) {
       boot(false);
+      openPromoFromLaunch();
       await window.finishLoadingIntro?.();
       return;
     }
@@ -865,6 +917,7 @@ async function startApp() {
     setVerified();
     haptic('success'); confetti(); toast('Tasdiqlandi. Xush kelibsiz!');
     boot(true);
+    openPromoFromLaunch();
   } catch (error) {
     console.error('Mini App initialization failed:', error);
     await window.finishLoadingIntro?.();

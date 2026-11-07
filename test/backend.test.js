@@ -629,6 +629,17 @@ test('API health is public but game data rejects unsigned requests', async (t) =
   assert.match(miniAppHtml, /<title>Viral<\/title>/);
   assert.match(miniAppHtml, /id="page-rules"/);
   assert.match(miniAppHtml, /id="rulesContent"/);
+  assert.match(miniAppHtml, /id="promoCode"/);
+  assert.match(miniAppHtml, /id="redeemPromoBtn"/);
+  const miniAppScript = await fetch(`${baseUrl}/app.js`);
+  assert.equal(miniAppScript.status, 200);
+  assert.match(await miniAppScript.text(), /\/promos\/redeem/);
+  const unauthenticatedPromo = await fetch(`${baseUrl}/api/promos/redeem`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code: 'YANGI2026' }),
+  });
+  assert.equal(unauthenticatedPromo.status, 401);
   const rules = await fetch(`${baseUrl}/qoidalar.txt`);
   assert.equal(rules.status, 200);
   assert.match(rules.headers.get('content-type'), /text\/plain/);
