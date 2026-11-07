@@ -69,6 +69,32 @@ test('.env.example contains only the four deployment secrets/settings', () => {
   assert.deepEqual(keys, ['MONGODB_URI', 'APP_URL', 'ADMIN_IDS', 'API_TOKEN']);
 });
 
+test('APP_URL is normalized and must be an HTTPS URL without credentials', () => {
+  const { config } = createApplication({
+    env: {
+      API_TOKEN: '123456:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghi',
+      ADMIN_IDS: '12345',
+      APP_URL: '  https://example.com/mini-app  ',
+    },
+  });
+  assert.equal(config.appUrl, 'https://example.com/mini-app');
+
+  assert.throws(() => createApplication({
+    env: {
+      API_TOKEN: '123456:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghi',
+      ADMIN_IDS: '12345',
+      APP_URL: 'http://example.com',
+    },
+  }), /APP_URL must be a public HTTPS URL/);
+  assert.throws(() => createApplication({
+    env: {
+      API_TOKEN: '123456:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghi',
+      ADMIN_IDS: '12345',
+      APP_URL: 'https://user:password@example.com',
+    },
+  }), /without embedded credentials/);
+});
+
 test('game defaults do not read rewards or bot identity from environment variables', () => {
   const { config } = createApplication({
     env: {

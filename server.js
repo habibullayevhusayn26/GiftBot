@@ -171,6 +171,19 @@ function parseAdminIds(value) {
   return new Set(ids);
 }
 
+function normalizeAppUrl(value) {
+  let appUrl;
+  try {
+    appUrl = new URL(String(value || '').trim());
+  } catch {
+    throw new Error('APP_URL must be a public HTTPS URL, for example https://your-app.onrender.com/.');
+  }
+  if (appUrl.protocol !== 'https:' || !appUrl.hostname || appUrl.username || appUrl.password) {
+    throw new Error('APP_URL must be a public HTTPS URL without embedded credentials.');
+  }
+  return appUrl.href;
+}
+
 function createApplication(options = {}) {
   const env = options.env || process.env;
   const botToken = env.API_TOKEN;
@@ -179,19 +192,11 @@ function createApplication(options = {}) {
   const adminIds = parseAdminIds(env.ADMIN_IDS);
   const config = {
     botToken,
-    appUrl: env.APP_URL.replace(/\/+$/, ''),
+    appUrl: normalizeAppUrl(env.APP_URL),
     botUsername: '',
     ...DEFAULTS,
     adminIds,
   };
-  try {
-    const appUrl = new URL(config.appUrl);
-    if (appUrl.protocol !== 'https:' && appUrl.hostname !== 'localhost' && appUrl.hostname !== '127.0.0.1') {
-      throw new Error('APP_URL must use HTTPS.');
-    }
-  } catch (error) {
-    throw new Error(`APP_URL is invalid: ${error.message}`);
-  }
 
   const bot = options.bot || new Telegraf(botToken);
   const app = express();
