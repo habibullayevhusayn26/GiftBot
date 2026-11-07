@@ -8,9 +8,11 @@ const {
   createApplication,
   getTashkentDate,
   getWeekRange,
+  getReferralGiftMilestones,
   isActiveChatMember,
   decorateTelegramButton,
   decorateTelegramReplyMarkup,
+  sendTelegramGift,
   telegramUserMention,
   toTelegramHtml,
   verifyTelegramInitData,
@@ -67,6 +69,29 @@ test('weekly boundaries follow the Tashkent Monday-to-Monday week', () => {
   assert.equal(range.start.toISOString(), '2026-11-01T19:00:00.000Z');
   assert.equal(range.end.toISOString(), '2026-11-08T19:00:00.000Z');
   assert.equal(getTashkentDate(new Date('2026-11-07T19:00:00Z')), '2026-11-08');
+});
+
+test('referral gifts are queued at each ten verified referrals', () => {
+  assert.deepEqual(getReferralGiftMilestones(9), []);
+  assert.deepEqual(getReferralGiftMilestones(10), [10]);
+  assert.deepEqual(getReferralGiftMilestones(25), [10, 20]);
+  assert.deepEqual(getReferralGiftMilestones(Number.NaN), []);
+});
+
+test('Telegram gift sends use the Bot API user_id and gift_id fields', async () => {
+  let request;
+  const bot = {
+    telegram: {
+      callApi: async (...args) => {
+        request = args;
+        return true;
+      },
+    },
+  };
+  await sendTelegramGift(bot, '123456', 'gift-id');
+  assert.deepEqual(request, ['sendGift', { user_id: 123456, gift_id: 'gift-id' }]);
+  assert.throws(() => sendTelegramGift(bot, 'not-an-id', 'gift-id'), /must be numeric/);
+  assert.throws(() => sendTelegramGift(bot, '123456', ''), /gift ID is required/);
 });
 
 test('Telegram channel membership accepts active members and rejects left users', () => {
@@ -274,6 +299,7 @@ test('game defaults do not read rewards or bot identity from environment variabl
   assert.equal(config.refReward, 50);
   assert.equal(config.botUsername, '');
   assert.equal(config.channelUrl, '');
+  assert.equal(config.referralGift, null);
 });
 
 test('API health is public but game data rejects unsigned requests', async (t) => {

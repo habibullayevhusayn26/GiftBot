@@ -10,6 +10,7 @@ const { Telegraf, Markup } = require('telegraf');
 
 const TIME_ZONE = 'Asia/Tashkent';
 const DAY_MS = 24 * 60 * 60 * 1000;
+const REFERRAL_GIFT_MILESTONE = 10;
 const BUTTON_GRAPHEME_SEGMENTER = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
 const BUTTON_EMOJI_IDS = new Map([
   ['📢', '5972335630644943766'],
@@ -169,6 +170,24 @@ function telegramUserMention(userId, name) {
   return `\u0001${userId}:${encodedName}\u0002`;
 }
 
+function getReferralGiftMilestones(referralCount) {
+  if (!Number.isSafeInteger(referralCount) || referralCount < REFERRAL_GIFT_MILESTONE) return [];
+  const milestones = [];
+  for (let count = REFERRAL_GIFT_MILESTONE; count <= referralCount; count += REFERRAL_GIFT_MILESTONE) {
+    milestones.push(count);
+  }
+  return milestones;
+}
+
+function sendTelegramGift(bot, userId, giftId) {
+  if (!/^\d+$/.test(String(userId))) throw new Error('Telegram user ID must be numeric.');
+  if (typeof giftId !== 'string' || !giftId) throw new Error('Telegram gift ID is required.');
+  return bot.telegram.callApi('sendGift', {
+    user_id: Number(userId),
+    gift_id: giftId,
+  });
+}
+
 const DEFAULTS = {
   weeklyPrize: 100000,
   refReward: 50,
@@ -178,6 +197,7 @@ const DEFAULTS = {
   invite3Reward: 200,
   dailyBonusBase: 20,
   dailyStreakBonus: 10,
+  referralGift: null,
   channelChatId: '',
   channelUrl: '',
   instagramUrl: '',
@@ -305,6 +325,17 @@ const settingSchema = new mongoose.Schema({
   value: { type: mongoose.Schema.Types.Mixed },
 }, { versionKey: false });
 
+const referralGiftSchema = new mongoose.Schema({
+  _id: { type: String },
+  userId: { type: String, required: true },
+  referralCount: { type: Number, required: true },
+  giftId: { type: String, default: '' },
+  giftStars: { type: Number, default: 0 },
+  status: { type: String, enum: ['pending', 'sending', 'sent', 'failed', 'unknown'], default: 'pending' },
+  error: { type: String, default: '' },
+  sentAt: { type: Date, default: null },
+}, { timestamps: true, versionKey: false });
+
 const User = mongoose.model('User', userSchema);
 const Ledger = mongoose.model('Ledger', ledgerSchema);
 const Task = mongoose.model('Task', taskSchema);
@@ -312,6 +343,7 @@ const Claim = mongoose.model('Claim', claimSchema);
 const Captcha = mongoose.model('Captcha', captchaSchema);
 const WeeklyAward = mongoose.model('WeeklyAward', weeklyAwardSchema);
 const Setting = mongoose.model('Setting', settingSchema);
+const ReferralGift = mongoose.model('ReferralGift', referralGiftSchema);
 
 class HttpError extends Error {
   constructor(status, message) {
@@ -383,6 +415,7 @@ function createApplication(options = {}) {
   const app = express();
   const pendingAdminInputs = new Map();
   const pendingChannelSelections = new Map();
+  const referralGiftCatalogs = new Map();
   app.disable('x-powered-by');
   app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
   app.use(express.json({ limit: '32kb' }));
@@ -482,6 +515,43 @@ function createApplication(options = {}) {
         );
       } catch (error) {
         console.error(`Could not notify referrer ${inviter._id}:`, error.message);
+      }
+      const referralCount = await User.countDocuments({
+        invitedBy: inviter._id,
+        referralRewarded: true,
+      });
+      for (const milestone of getReferralGiftMilestones(referralCount)) {
+        try {
+          const awardId = `${inviter._id}_${milestone}`;
+          const queued = await ReferralGift.updateOne(
+            { _id: awardId },
+            {
+              $setOnInsert: {
+                userId: inviter._id,
+                referralCount: milestone,
+                giftId: '',
+                giftStars: 0,
+                status: 'pending',
+              },
+            },
+            { upsert: true },
+          );
+          if (queued.upsertedCount !== 1) continue;
+          if (config.referralGift?.id) {
+            await deliverReferralGift(awardId);
+          } else {
+            await notifyAdmins(
+              `🎁 ${telegramUserMention(inviter._id, [inviter.firstName, inviter.lastName].filter(Boolean).join(' '))} ` +
+              `${milestone} ta tasdiqlangan do‘st taklif qildi. Sovg‘ani yuborish uchun /admin panelida gift tanlang.`,
+              referralGiftKeyboard(),
+            );
+          }
+        } catch (error) {
+          console.error(`Could not queue referral gift for ${inviter._id} at ${milestone}:`, error);
+          await notifyAdmins(
+            `❗ ${milestone} ta taklif uchun gift navbatini saqlab bo‘lmadi (foydalanuvchi ID ${inviter._id}). Tekshiring.`,
+          );
+        }
       }
     }
   }
@@ -756,6 +826,126 @@ function createApplication(options = {}) {
     }
   }
 
+  async function deliverReferralGift(awardId, { retryFailed = false } = {}) {
+    const filter = retryFailed
+      ? { _id: awardId, status: { $in: ['pending', 'failed'] } }
+      : { _id: awardId, status: 'pending' };
+    const award = await ReferralGift.findOneAndUpdate(
+      filter,
+      {
+        $set: {
+          status: 'sending',
+          giftId: config.referralGift?.id || '',
+          giftStars: config.referralGift?.stars || 0,
+          error: '',
+        },
+      },
+      { new: true },
+    );
+    if (!award) return false;
+    if (!config.referralGift?.id) {
+      await ReferralGift.updateOne(
+        { _id: awardId, status: 'sending' },
+        { $set: { status: 'pending', error: 'Admin hali gift tanlamagan.' } },
+      );
+      return false;
+    }
+
+    try {
+      await sendTelegramGift(bot, award.userId, config.referralGift.id);
+    } catch (error) {
+      const status = error.response ? 'failed' : 'unknown';
+      await ReferralGift.updateOne(
+        { _id: awardId, status: 'sending' },
+        { $set: { status, error: String(error.message || error).slice(0, 500) } },
+      );
+      await notifyAdmins(
+        `${status === 'failed' ? '❗' : '⚠️'} ${award.referralCount} ta do‘st taklifi uchun gift holati: ${status} ` +
+        `(foydalanuvchi ID ${award.userId}). Bot Stars balansini tekshiring.` +
+        `${status === 'unknown' ? ' Qayta yuborishdan oldin Telegram gift tarixini tekshiring.' : ''} ` +
+        `Xato: ${String(error.message || error).slice(0, 250)}`,
+      );
+      return false;
+    }
+
+    try {
+      await ReferralGift.updateOne(
+        { _id: awardId, status: 'sending' },
+        { $set: { status: 'sent', sentAt: new Date(), error: '' } },
+      );
+    } catch (error) {
+      console.error(`Gift ${awardId} was accepted by Telegram but its status could not be saved:`, error);
+      await notifyAdmins(
+        `⚠️ Gift (${award.referralCount} ta taklif, foydalanuvchi ID ${award.userId}) Telegram tomonidan qabul qilindi, ` +
+        'ammo MongoDB holatni saqlamadi. Takror yuborishdan oldin gift tarixini tekshiring.',
+      );
+    }
+    return true;
+  }
+
+  async function showReferralGiftSettings(ctx, page = 0, refresh = false) {
+    const adminId = String(ctx.from.id);
+    let gifts = referralGiftCatalogs.get(adminId);
+    if (refresh || !gifts) {
+      try {
+        const result = await bot.telegram.callApi('getAvailableGifts', {});
+        gifts = result.gifts || [];
+        referralGiftCatalogs.set(adminId, gifts);
+      } catch (error) {
+        console.error('Could not load Telegram gifts:', error.message);
+        await ctx.reply(`Telegram giftlar ro‘yxatini olib bo‘lmadi: ${error.message}`);
+        return;
+      }
+    }
+
+    const [pending, failed, sending, unknown] = await Promise.all([
+      ReferralGift.countDocuments({ status: 'pending' }),
+      ReferralGift.countDocuments({ status: 'failed' }),
+      ReferralGift.countDocuments({ status: 'sending' }),
+      ReferralGift.countDocuments({ status: 'unknown' }),
+    ]);
+    const selected = config.referralGift
+      ? `${config.referralGift.emoji || '🎁'} · ${config.referralGift.stars} Stars`
+      : 'tanlanmagan';
+    const queuedBatch = Math.min(pending + failed, 20);
+    const estimatedStars = queuedBatch * (config.referralGift?.stars || 0);
+    const pageSize = 8;
+    const rows = [];
+    const selectableGifts = gifts.filter((gift) => Number.isSafeInteger(gift.star_count) &&
+      gift.star_count > 0 && (gift.remaining_count == null || gift.remaining_count > 0));
+    for (let index = page * pageSize; index < Math.min(selectableGifts.length, (page + 1) * pageSize); index += 1) {
+      const gift = selectableGifts[index];
+      rows.push([Markup.button.callback(
+        `${gift.sticker?.emoji || '🎁'} · ${gift.star_count} Stars`,
+        `refgift_select_${index}`,
+      )]);
+    }
+    const navigation = [];
+    if (page > 0) navigation.push(Markup.button.callback('⬅️ Oldingi', `refgift_page_${page - 1}`));
+    if ((page + 1) * pageSize < selectableGifts.length) {
+      navigation.push(Markup.button.callback('Keyingi ➡️', `refgift_page_${page + 1}`));
+    }
+    if (navigation.length) rows.push(navigation);
+    rows.push([Markup.button.callback('🔄 Giftlar ro‘yxatini yangilash', 'admin_referral_gift')]);
+    if (config.referralGift) rows.push([Markup.button.callback('🗑 Giftni o‘chirish', 'refgift_clear')]);
+    if (queuedBatch > 0 && config.referralGift) {
+      rows.push([Markup.button.callback(
+        `🎁 Navbatni yuborish (${queuedBatch}; ≈${estimatedStars} ⭐)`,
+        'refgift_process_queue',
+      )]);
+    }
+    rows.push([Markup.button.callback('⬅️ Admin panel', 'admin_home')]);
+    await ctx.reply(
+      `🎁 Referral sovg‘asi\n\nTanlangan gift: ${selected}\nYuborish navbatida: ${pending}\nXatolik bilan qolgan: ${failed}\nYuborilayotgani: ${sending}\nNatijasi noaniq: ${unknown}\n\nNoaniq holatdagi giftni qayta yuborishdan oldin Telegram gift tarixini tekshiring. Har 10 ta tasdiqlangan taklifda gift botning Stars balansidan yuboriladi.${selectableGifts.length ? ' Sovg‘ani tanlang:' : ' Hozircha pullik gift mavjud emas.'}`,
+      Markup.inlineKeyboard(rows),
+    );
+    referralGiftCatalogs.set(`${adminId}:selectable`, selectableGifts);
+  }
+
+  const referralGiftKeyboard = () => Markup.inlineKeyboard([[
+    Markup.button.callback('🎁 Gift tanlash', 'admin_referral_gift'),
+  ]]);
+
   async function adminOnly(ctx, next) {
     if (!config.adminIds.has(String(ctx.from?.id))) {
       if (ctx.callbackQuery) await ctx.answerCbQuery('Bu bo‘lim adminlar uchun.', { show_alert: true });
@@ -776,6 +966,7 @@ function createApplication(options = {}) {
       Markup.button.callback('📊 Statistika', 'admin_stats'),
       Markup.button.callback('📤 Xabar yuborish', 'admin_broadcast'),
     ],
+    [Markup.button.callback('🎁 Referral sovg‘asi', 'admin_referral_gift')],
     [Markup.button.callback('⚙️ Ball va havolalar', 'admin_settings')],
   ]);
 
@@ -1120,6 +1311,65 @@ function createApplication(options = {}) {
       kind: 'broadcast',
       prompt: 'Barcha obunachilarga yuboriladigan xabarni javob qilib yuboring. Bekor qilish uchun “Bekor qilish” deb yozing.',
     });
+  });
+  bot.action('admin_referral_gift', adminOnly, async (ctx) => {
+    await ctx.answerCbQuery();
+    await showReferralGiftSettings(ctx, 0, true);
+  });
+  bot.action(/^refgift_page_(\d+)$/, adminOnly, async (ctx) => {
+    await ctx.answerCbQuery();
+    await showReferralGiftSettings(ctx, Number(ctx.match[1]));
+  });
+  bot.action(/^refgift_select_(\d+)$/, adminOnly, async (ctx) => {
+    await ctx.answerCbQuery();
+    const gifts = referralGiftCatalogs.get(`${ctx.from.id}:selectable`);
+    const gift = gifts?.[Number(ctx.match[1])];
+    if (!gift) {
+      await ctx.reply('Bu gift tanlovi eskirgan. Ro‘yxatni qayta oching.');
+      return;
+    }
+    if (!Number.isSafeInteger(gift.star_count) || gift.star_count <= 0) {
+      await ctx.reply('Gift narxi noto‘g‘ri. Ro‘yxatni yangilang va boshqa gift tanlang.');
+      return;
+    }
+    await saveSetting('referralGift', {
+      id: String(gift.id),
+      stars: Number(gift.star_count),
+      emoji: gift.sticker?.emoji || '🎁',
+    });
+    await ctx.reply(
+      `${gift.sticker?.emoji || '🎁'} Gift tanlandi. Har 10 ta tasdiqlangan taklifda bot balansidan ${Number(gift.star_count)} Stars sarflanadi.`,
+    );
+    await showReferralGiftSettings(ctx);
+  });
+  bot.action('refgift_clear', adminOnly, async (ctx) => {
+    await ctx.answerCbQuery();
+    await saveSetting('referralGift', null);
+    await ctx.reply('Referral gift o‘chirildi. Yangi milestone sovg‘alari yuborilmaydi.');
+    await showReferralGiftSettings(ctx);
+  });
+  bot.action('refgift_process_queue', adminOnly, async (ctx) => {
+    await ctx.answerCbQuery();
+    if (!config.referralGift?.id) {
+      await ctx.reply('Avval yuboriladigan giftni tanlang.');
+      return;
+    }
+    const awards = await ReferralGift.find({ status: { $in: ['pending', 'failed'] } })
+      .sort({ createdAt: 1, _id: 1 }).limit(20).select('_id').lean();
+    let sent = 0;
+    let failed = 0;
+    for (const award of awards) {
+      try {
+        if (await deliverReferralGift(award._id, { retryFailed: true })) sent += 1;
+        else failed += 1;
+      } catch (error) {
+        failed += 1;
+        console.error(`Could not process referral gift ${award._id}:`, error);
+      }
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    await ctx.reply(`Gift navbati ko‘rib chiqildi.\nYuborildi: ${sent}\nXato: ${failed}\nUrinishlar: ${awards.length}`);
+    await showReferralGiftSettings(ctx);
   });
   bot.command('setprize', adminOnly, async (ctx) => {
     const amount = Number((ctx.message.text.split(/\s+/)[1] || '').replace(/[,_\s]/g, ''));
@@ -1647,7 +1897,7 @@ async function start() {
   const { app, bot, config, ensureSeedTasks, closePreviousWeek } = createApplication();
   if (!process.env.MONGODB_URI) throw new Error('MONGODB_URI is required.');
   await mongoose.connect(process.env.MONGODB_URI);
-  await Promise.all([User, Ledger, Task, Claim, Captcha, WeeklyAward, Setting].map((model) => model.init()));
+  await Promise.all([User, Ledger, Task, Claim, Captcha, WeeklyAward, Setting, ReferralGift].map((model) => model.init()));
   await ensureSeedTasks();
   const identity = await bot.telegram.getMe();
   config.botUsername = config.botUsername || identity.username;
@@ -1705,9 +1955,11 @@ module.exports = {
   createApplication,
   getTashkentDate,
   getWeekRange,
+  getReferralGiftMilestones,
   isActiveChatMember,
   decorateTelegramButton,
   decorateTelegramReplyMarkup,
+  sendTelegramGift,
   telegramUserMention,
   toTelegramHtml,
   verifyTelegramInitData,
