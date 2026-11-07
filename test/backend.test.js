@@ -8,6 +8,7 @@ const {
   createApplication,
   getTashkentDate,
   getWeekRange,
+  getTelegramRetryDelay,
   getReferralGiftMilestones,
   buildLeaderboardPipeline,
   isActiveChatMember,
@@ -70,6 +71,15 @@ test('weekly boundaries follow the Tashkent Monday-to-Monday week', () => {
   assert.equal(range.start.toISOString(), '2026-11-01T19:00:00.000Z');
   assert.equal(range.end.toISOString(), '2026-11-08T19:00:00.000Z');
   assert.equal(getTashkentDate(new Date('2026-11-07T19:00:00Z')), '2026-11-08');
+});
+
+test('Telegram connection retries use capped exponential backoff', () => {
+  assert.equal(getTelegramRetryDelay(1), 1000);
+  assert.equal(getTelegramRetryDelay(2), 2000);
+  assert.equal(getTelegramRetryDelay(6), 32000);
+  assert.equal(getTelegramRetryDelay(7), 60000);
+  assert.equal(getTelegramRetryDelay(20), 60000);
+  assert.throws(() => getTelegramRetryDelay(0), /positive integer/);
 });
 
 test('referral gifts are queued at each ten verified referrals', () => {

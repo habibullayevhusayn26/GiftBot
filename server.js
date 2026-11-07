@@ -11,6 +11,8 @@ const { Telegraf, Markup } = require('telegraf');
 const TIME_ZONE = 'Asia/Tashkent';
 const DAY_MS = 24 * 60 * 60 * 1000;
 const REFERRAL_GIFT_MILESTONE = 10;
+const TELEGRAM_RETRY_BASE_MS = 1000;
+const TELEGRAM_RETRY_MAX_MS = 60000;
 const BUTTON_GRAPHEME_SEGMENTER = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
 const BUTTON_EMOJI_IDS = new Map([
   ['📢', '5972335630644943766'],
@@ -218,6 +220,13 @@ function sendTelegramGift(bot, userId, giftId) {
     user_id: Number(userId),
     gift_id: giftId,
   });
+}
+
+function getTelegramRetryDelay(attempt) {
+  if (!Number.isSafeInteger(attempt) || attempt < 1) {
+    throw new Error('Telegram retry attempt must be a positive integer.');
+  }
+  return Math.min(TELEGRAM_RETRY_BASE_MS * (2 ** (attempt - 1)), TELEGRAM_RETRY_MAX_MS);
 }
 
 const DEFAULTS = {
@@ -1299,10 +1308,6 @@ function createApplication(options = {}) {
         `👤 ${telegramUserMention(user._id, fullName)} botga yangi obunachi qo‘shildi!`,
       );
     }
-    if (!config.botUsername) {
-      const identity = await bot.telegram.getMe();
-      config.botUsername = identity.username;
-    }
     await ctx.reply(
       '👋 Viral mini-ilovasiga xush kelibsiz!\n👥 Do‘st taklif qiling, 📋 topshiriqlarni bajaring va 🏆 haftalik sovrin uchun bellashing.',
       Markup.inlineKeyboard([[
@@ -1914,12 +1919,7 @@ async function start() {
   await mongoose.connect(process.env.MONGODB_URI);
   await Promise.all([User, Ledger, Task, Claim, Captcha, WeeklyAward, Setting, ReferralGift].map((model) => model.init()));
   await ensureSeedTasks();
-  const identity = await bot.telegram.getMe();
-  config.botUsername = config.botUsername || identity.username;
   await closePreviousWeek();
-  await bot.telegram.setChatMenuButton({
-    menuButton: { type: 'web_app', text: 'Mini ilova', web_app: { url: config.appUrl } },
-  }).catch((error) => console.error('Could not set the Telegram menu button:', error.message));
 
   const scheduleWeeklyAward = () => {
     const now = new Date();
@@ -1941,17 +1941,40 @@ async function start() {
     timer.unref();
   };
   scheduleWeeklyAward();
-  bot.launch({ allowedUpdates: ['message', 'callback_query', 'chat_member'] }).catch((error) => {
-    console.error('Telegram bot stopped:', error);
-    process.exitCode = 1;
-  });
 
   const port = Number(process.env.PORT || 3000);
   const server = app.listen(port, () => console.log(`Mini App server listening on port ${port}`));
+  let stopping = false;
+  const retryTelegramOperation = async (label, operation) => {
+    let attempt = 0;
+    while (!stopping) {
+      try {
+        await operation();
+        return;
+      } catch (error) {
+        attempt += 1;
+        const delay = getTelegramRetryDelay(attempt);
+        console.error(`${label} failed; retrying in ${delay}ms:`, error.message);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+    }
+  };
+  void retryTelegramOperation('Telegram bot connection', () => bot.launch(
+    { allowedUpdates: ['message', 'callback_query', 'chat_member'] },
+    () => {
+      config.botUsername = config.botUsername || bot.botInfo?.username || '';
+      console.log(`Telegram bot connected${config.botUsername ? ` as @${config.botUsername}` : ''}.`);
+    },
+  ));
+  void retryTelegramOperation('Telegram Mini App menu button setup', () => bot.telegram.setChatMenuButton({
+    menuButton: { type: 'web_app', text: 'Mini ilova', web_app: { url: config.appUrl } },
+  }));
+
   const stop = async (signal) => {
     console.log(`${signal} received; shutting down.`);
+    stopping = true;
     server.close();
-    bot.stop(signal);
+    if (bot.polling || bot.webhookServer) bot.stop(signal);
     await mongoose.disconnect();
     process.exit(0);
   };
@@ -1970,6 +1993,7 @@ module.exports = {
   createApplication,
   getTashkentDate,
   getWeekRange,
+  getTelegramRetryDelay,
   getReferralGiftMilestones,
   buildLeaderboardPipeline,
   isActiveChatMember,
