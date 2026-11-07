@@ -15,6 +15,7 @@ const {
   createDonationInvoiceLink,
   isValidStarDonationPayment,
   buildLeaderboardPipeline,
+  buildTopDonorsPipeline,
   isActiveChatMember,
   decorateTelegramButton,
   decorateTelegramReplyMarkup,
@@ -145,6 +146,27 @@ test('leaderboard includes every verified user and gives users without points a 
 
   const allTimePipeline = buildLeaderboardPipeline('ledgers');
   assert.equal('createdAt' in allTimePipeline[1].$lookup.pipeline[0].$match, false);
+});
+
+test('top donor pipeline sums only successful Stars donations and returns named top users', () => {
+  const pipeline = buildTopDonorsPipeline('donations', 'users');
+  assert.deepEqual(pipeline[0], { $match: { status: 'paid', amount: { $gt: 0 } } });
+  assert.deepEqual(pipeline[1], { $group: { _id: '$userId', stars: { $sum: '$amount' } } });
+  assert.deepEqual(pipeline[2], { $sort: { stars: -1, _id: 1 } });
+  assert.deepEqual(pipeline[3], { $limit: 10 });
+  assert.equal(pipeline[4].$lookup.from, 'users');
+  assert.deepEqual(pipeline[4].$lookup.pipeline[0], {
+    $match: { $expr: { $eq: ['$_id', '$$donorUserId'] } },
+  });
+  assert.deepEqual(pipeline[5], { $unwind: '$user' });
+  assert.deepEqual(pipeline[6].$project, {
+    _id: 0,
+    name: '$user.name',
+    username: '$user.username',
+    stars: 1,
+  });
+  assert.equal(buildTopDonorsPipeline('donations', 'users', 5)[3].$limit, 5);
+  assert.throws(() => buildTopDonorsPipeline('donations', 'users', 0), /limit/);
 });
 
 test('Telegram gift sends use the Bot API user_id and gift_id fields', async () => {

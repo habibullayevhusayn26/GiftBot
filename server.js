@@ -228,6 +228,38 @@ function buildLeaderboardPipeline(ledgerCollection, range = null) {
   ];
 }
 
+function buildTopDonorsPipeline(donationCollection, userCollection, limit = 10) {
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
+    throw new Error('Top donor limit must be an integer from 1 to 100.');
+  }
+  return [
+    { $match: { status: 'paid', amount: { $gt: 0 } } },
+    { $group: { _id: '$userId', stars: { $sum: '$amount' } } },
+    { $sort: { stars: -1, _id: 1 } },
+    { $limit: limit },
+    {
+      $lookup: {
+        from: userCollection,
+        let: { donorUserId: '$_id' },
+        pipeline: [
+          { $match: { $expr: { $eq: ['$_id', '$$donorUserId'] } } },
+          { $project: { _id: 0, name: '$firstName', username: 1 } },
+        ],
+        as: 'user',
+      },
+    },
+    { $unwind: '$user' },
+    {
+      $project: {
+        _id: 0,
+        name: '$user.name',
+        username: '$user.username',
+        stars: 1,
+      },
+    },
+  ];
+}
+
 function sendTelegramGift(bot, userId, giftId) {
   if (!/^\d+$/.test(String(userId))) throw new Error('Telegram user ID must be numeric.');
   if (typeof giftId !== 'string' || !giftId) throw new Error('Telegram gift ID is required.');
@@ -1940,6 +1972,14 @@ function createApplication(options = {}) {
     res.json(await leaderboard(period, String(req.telegram.id)));
   }));
 
+  app.get('/api/top-donors', authenticate, requireVerified, asyncRoute(async (req, res) => {
+    const donors = await Donation.aggregate(buildTopDonorsPipeline(
+      Donation.collection.name,
+      User.collection.name,
+    ));
+    res.json(donors);
+  }));
+
   app.post('/api/daily', authenticate, requireVerified, asyncRoute(async (req, res) => {
     const userId = String(req.telegram.id);
     const user = await User.findById(userId);
@@ -2174,6 +2214,7 @@ module.exports = {
   createDonationInvoiceLink,
   isValidStarDonationPayment,
   buildLeaderboardPipeline,
+  buildTopDonorsPipeline,
   isActiveChatMember,
   decorateTelegramButton,
   decorateTelegramReplyMarkup,

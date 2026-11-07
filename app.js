@@ -331,6 +331,7 @@ function renderFriends() {
 
 let period = 'week';
 async function renderTop() {
+  const donorsRequest = renderTopDonors();
   let data;
   let own = null;
   if (LIVE_MODE) {
@@ -340,6 +341,7 @@ async function renderTop() {
       own = { name: `${demo.user.name} (Siz)`, score: liveLeaderboard.ownScore, rank: liveLeaderboard.rank };
     } catch (error) {
       toast(error.message);
+      await donorsRequest;
       return;
     }
   } else {
@@ -376,6 +378,30 @@ async function renderTop() {
   $('#topList').innerHTML = rows + ownRow || (data.length
     ? '<div class="empty">Top-3 ishtirokchilar yuqorida ko‘rsatilgan.</div>'
     : '<div class="empty">Hali reytingda qatnashuvchi yo‘q.</div>');
+  await donorsRequest;
+}
+
+async function renderTopDonors() {
+  const container = $('#topDonors');
+  if (!LIVE_MODE) {
+    container.innerHTML = '<div class="empty">Donaterlar ro‘yxati Telegram Mini App’da ko‘rinadi.</div>';
+    return;
+  }
+  try {
+    const donors = await api('/top-donors');
+    container.innerHTML = donors.length
+      ? donors.map((donor, index) => `
+        <div class="item donor-row">
+          <span class="rank">${index + 1}</span>
+          <div class="avatar" style="${grad(index)}">${esc(initials(donor.name))}</div>
+          <div class="txt"><b>${esc(donor.name || 'Foydalanuvchi')}</b><span>${donor.username ? `@${esc(donor.username)}` : 'Donater'}</span></div>
+          <span class="donor-stars">${fmt(donor.stars)} ⭐</span>
+        </div>`).join('')
+      : '<div class="empty">Hali donat qilganlar yo‘q.</div>';
+  } catch (error) {
+    container.innerHTML = '<div class="empty">Donaterlar ro‘yxatini yuklab bo‘lmadi.</div>';
+    toast(error.message);
+  }
 }
 
 function renderProfile() {

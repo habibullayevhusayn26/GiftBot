@@ -422,6 +422,8 @@ body.locked { overflow: hidden; }
 #page-home .stats > div { padding: 0 4px; }
 #page-home .stats > div + div { border-left: 1px solid rgba(255,255,255,.08); }
 #page-home .stats b { font-size: 18px; }
+.donor-row .rank { color: #ffd166; }
+.donor-stars { flex: none; color: #ffd166; font-size: 13px; font-weight: 700; white-space: nowrap; }
 #page-home .stats span { display: block; margin-top: 3px; font-size: 10px; color: #9792a8; }
 
 #page-home .glass-btn { height: 54px; border-radius: 17px; background: linear-gradient(100deg, #8049ef, #a45bfa); box-shadow: 0 9px 24px rgba(125,69,226,.24); }
