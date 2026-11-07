@@ -9,6 +9,64 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <div class="loading-intro" id="loadingIntro" role="status" aria-live="polite">
+    <div class="loading-intro__bg" aria-hidden="true"><i></i><i></i><i></i></div>
+    <main class="loading-intro__content">
+      <div class="loading-intro__orb" aria-hidden="true">
+        <svg viewBox="0 0 56 56">
+          <circle class="loading-intro__track" cx="28" cy="28" r="22"></circle>
+          <circle class="loading-intro__ring" cx="28" cy="28" r="22"></circle>
+        </svg>
+      </div>
+      <h1>Viral</h1>
+      <p>Mini-ilova tayyorlanmoqda</p>
+      <div class="loading-intro__bar" aria-hidden="true"><b id="loadingProgress"></b></div>
+    </main>
+  </div>
+  <script>
+    (function () {
+      var telegram = window.Telegram && window.Telegram.WebApp;
+      if (telegram) {
+        try {
+          telegram.ready();
+          telegram.expand();
+          if (telegram.setHeaderColor) telegram.setHeaderColor('bg_color');
+        } catch (error) {
+          console.warn('Telegram loading screen setup failed:', error);
+        }
+      }
+
+      var intro = document.getElementById('loadingIntro');
+      var fill = document.getElementById('loadingProgress');
+      var progress = 0;
+      var finished = false;
+      var timer = window.setInterval(function () {
+        progress += (90 - progress) * 0.12;
+        fill.style.width = progress + '%';
+      }, 180);
+
+      window.finishLoadingIntro = function () {
+        if (finished) return Promise.resolve();
+        finished = true;
+        window.clearInterval(timer);
+        fill.style.width = '100%';
+        intro.classList.add('is-done');
+        if (telegram && telegram.HapticFeedback) {
+          try {
+            telegram.HapticFeedback.notificationOccurred('success');
+          } catch (error) {
+            console.warn('Telegram loading haptic failed:', error);
+          }
+        }
+        return new Promise(function (resolve) {
+          window.setTimeout(function () {
+            intro.remove();
+            resolve();
+          }, 480);
+        });
+      };
+    })();
+  </script>
   <div class="bg" aria-hidden="true"><i class="blob b1"></i><i class="blob b2"></i><i class="blob b3"></i></div>
 
   <main id="app">

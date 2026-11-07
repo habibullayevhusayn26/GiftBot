@@ -620,13 +620,17 @@ function playChallenge(ch) {
 
 async function runCaptcha() {
   mountAnimations($('.cap-ico'));
-  $('#captcha').hidden = false;
-  document.body.classList.add('locked');
   if ((tg?.initDataUnsafe?.start_param || '').startsWith('ref_')) $('#capRef').hidden = false;
   let fails = 0;
   for (;;) {
     const ch = LIVE_MODE ? await api('/captcha') : buildChallenge();
-    if (ch.verified) break;
+    if (ch.verified) {
+      await window.finishLoadingIntro?.();
+      break;
+    }
+    await window.finishLoadingIntro?.();
+    $('#captcha').hidden = false;
+    document.body.classList.add('locked');
     if (await playChallenge(ch)) break;
     fails++;
     $('#capMsg').textContent = "Noto'g'ri. Siz uchun yangi savollar tayyorlandi";
@@ -663,10 +667,12 @@ async function startApp() {
       renderPrize();
       mountAnimations(document);
       go('home', true);
+      await window.finishLoadingIntro?.();
       return;
     }
     if (isVerified()) {
       boot(false);
+      await window.finishLoadingIntro?.();
       return;
     }
     await runCaptcha();
@@ -675,6 +681,7 @@ async function startApp() {
     boot(true);
   } catch (error) {
     console.error('Mini App initialization failed:', error);
+    await window.finishLoadingIntro?.();
     $('#captcha').hidden = false;
     document.body.classList.add('locked');
     $('#capQ').textContent = 'Mini-ilovaga ulanib bo‘lmadi';
