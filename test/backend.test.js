@@ -339,6 +339,31 @@ test('Telegram HTML prefixes every message inline and safely escapes message tex
   assert.throws(() => telegramUserMention('invalid', 'Ali'), /must be numeric/);
 });
 
+test('all supplied premium emoji variants are formatted as Telegram custom emoji', () => {
+  const emojis = [
+    '📢', '👤', '💬', '⚙️', '⭐️', '👮', '💟', '🙂', '🖼', '📹', '📑', '🎙', '📼',
+    '📊', '☑️', '🎞', '🎵', '📍', '😜', '🎲', '🆓', '↩️', 'ℹ️', '❔', '📤', '🫣',
+    '🗑', '🟢', '🔴', '🔵', '🔘', '🔽', '🔼', '🔔', '🔕', '👁', '❗️', '❌', '✅',
+    '⚠️', '📞', '📌', '🔑', '🤖', '🛡', '⬅️', '➡️', '🚫', '⛔️', '💤', '👋', '🗓',
+    '#️⃣', '🗣', '🕓', '📐', '✏️', '👩‍⚖️', '📄', '🪂', '▶️', '➕', '📁', '🎁', '🎈',
+    '👥', '🔗', '📋', '🆘', '📈', '✋', '🤳', '⏳', '✔️', '💰', '🔓', '🔧', '🆕',
+    '🧑‍💻', '🍎', '🥚', '📺', '🐔', '🍑', '🌐', '⌨️', '🛒', '🧠', '📝',
+  ];
+
+  for (const emoji of emojis) {
+    const normalizedEmoji = emoji.replace(/\uFE0F/g, '');
+    const formatted = toTelegramHtml(`${emoji} Tekshiruv`);
+    assert.match(
+      formatted,
+      new RegExp(`^<tg-emoji emoji-id="\\d+">${normalizedEmoji}</tg-emoji> Tekshiruv$`),
+      `Missing custom emoji formatting for ${emoji}`,
+    );
+    const button = decorateTelegramButton({ text: `${emoji} Tekshiruv`, callback_data: 'test' });
+    assert.equal(button.text, 'Tekshiruv', `Button emoji was not extracted for ${emoji}`);
+    assert.match(button.icon_custom_emoji_id, /^\d+$/, `Button emoji was not decorated for ${emoji}`);
+  }
+});
+
 test('Telegram inline and reply keyboard buttons receive custom emoji icons and supported colors', () => {
   const markup = decorateTelegramReplyMarkup({
     inline_keyboard: [[
