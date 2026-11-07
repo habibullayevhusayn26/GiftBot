@@ -119,9 +119,17 @@ const BUTTON_EMOJI_IDS = new Map([
   ['💍', '5282863804768623896'],
   ['💎', '5471952986970267163'],
   ['❤', '5449505950283078474'],
+  ['🎉', '5461151367559141950'],
+  ['📷', '5393067438608788241'],
+  ['🔄', '6012661228910939253'],
+  ['📣', '5424818078833715060'],
+  ['📨', '5406631276042002796'],
+  ['💸', '5472030678633684592'],
+  ['🔥', '5420315771991497307'],
+  ['🥇', '5440539497383087970'],
 ]);
 // Premium ID'si yo'q emojilar uchun eng yaqin premium emoji
-const EMOJI_ALIASES = new Map([['🎉', '🎈'], ['🎊', '🎈'], ['📣', '📢'], ['📷', '🖼'], ['🔄', '↩']]);
+const EMOJI_ALIASES = new Map([['🎊', '🎉']]);
 // Xabar qatori mazmuniga qarab premium emoji tanlash (tartib muhim: birinchi mos kelgani olinadi)
 const LINE_EMOJI_RULES = [
   [/xush kelibsiz/, '👋'],
@@ -132,7 +140,7 @@ const LINE_EMOJI_RULES = [
   [/notogri|xato|topilmadi|yetkazilmadi|bolmadi|eskirgan/, '❌'],
   [/format:|masalan|kiriting|kerak/, 'ℹ'],
   [/rahmat/, '💟'],
-  [/tabrik/, '🏆'],
+  [/tabrik/, '🎉'],
   [/saqlandi|qoshildi|tasdiqlandi|yangilandi|belgilandi|muvaffaqiyatli|yakunlandi|yuborildi|tanlandi|korib chiqildi|tekshiruvdan/, '✅'],
   [/yuborilmoqda|kuting|kutilayotgan|navbat|kutilmoqda/, '⏳'],
   [/noaniq/, '❔'],
@@ -143,15 +151,18 @@ const LINE_EMOJI_RULES = [
   [/instagram|havola|url/, '🔗'],
   [/umumiy reyting/, '📈'],
   [/reyting|statistika/, '📊'],
-  [/golib/, '🏆'],
-  [/mukofot|ball|coin|mablag|sovrin|miqdor|stars|pul|som\b/, '💰'],
+  [/golib/, '🥇'],
+  [/streak|kunlik|ketma-ket/, '🔥'],
+  [/sovrin|pul|som\b/, '💸'],
+  [/mukofot|ball|coin|mablag|miqdor|stars/, '💰'],
   [/isbot/, '📄'],
   [/topshiriq/, '📋'],
   [/ozgartir/, '✏'],
   [/sozlama|mongodb|qiymat/, '⚙'],
   [/hafta/, '🗓'],
-  [/urinish|holat/, '📌'],
-  [/xabar/, '📤'],
+  [/urinish/, '🔄'],
+  [/holat/, '📌'],
+  [/xabar/, '📨'],
 ];
 function pickLineEmoji(lineText) {
   const plain = lineText.toLowerCase().replace(/[‘’'ʻ`]/g, '');
