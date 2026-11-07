@@ -66,6 +66,7 @@ const BUTTON_EMOJI_IDS = new Map([
   ['🎲', '5974411534367989550'],
   ['🆓', '5974381894798680155'],
   ['👋', '5972185031911677527'],
+  ['👤', '5972291697424473566'],
 ]);
 const BUTTON_STYLE_EMOJI_IDS = {
   primary: '5974236196623098000',
@@ -121,7 +122,17 @@ function decorateTelegramReplyMarkup(replyMarkup) {
 }
 
 function toTelegramHtml(value) {
-  const text = String(value);
+  const userLinks = [];
+  const text = String(value).replace(/\u0001(\d+):([A-Za-z0-9_-]+)\u0002/g, (_, userId, encodedName) => {
+    const placeholder = `\u0003${userLinks.length}\u0004`;
+    const name = Buffer.from(encodedName, 'base64url').toString('utf8');
+    userLinks.push(`<a href="tg://user?id=${userId}">${name.replace(/[&<>]/g, (character) => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+    })[character])}</a>`);
+    return placeholder;
+  });
   const leadingText = text.trimStart();
   const firstGrapheme = BUTTON_GRAPHEME_SEGMENTER
     .segment(leadingText)[Symbol.iterator]().next().value?.segment;
@@ -137,8 +148,14 @@ function toTelegramHtml(value) {
     '&': '&amp;',
     '<': '&lt;',
     '>': '&gt;',
-  })[character]);
+  })[character]).replace(/\u0003(\d+)\u0004/g, (_, index) => userLinks[Number(index)] || '');
   return `${messageEmoji}${escaped ? ` ${escaped}` : ''}`;
+}
+
+function telegramUserMention(userId, name) {
+  if (!/^\d+$/.test(String(userId))) throw new Error('Telegram user ID must be numeric.');
+  const encodedName = Buffer.from(String(name), 'utf8').toString('base64url');
+  return `\u0001${userId}:${encodedName}\u0002`;
 }
 
 const DEFAULTS = {
@@ -216,6 +233,7 @@ const userSchema = new mongoose.Schema({
   verified: { type: Boolean, default: false },
   streak: { type: Number, default: 0 },
   lastDailyDate: { type: String, default: '' },
+  botStartedAt: { type: Date, default: null },
 }, { timestamps: true, versionKey: false });
 
 const ledgerSchema = new mongoose.Schema({
@@ -540,7 +558,6 @@ function createApplication(options = {}) {
       { $match: match },
       { $group: { _id: '$userId', score: { $sum: '$points' } } },
       { $sort: { score: -1, _id: 1 } },
-      { $limit: 100 },
       { $lookup: { from: User.collection.name, localField: '_id', foreignField: '_id', as: 'user' } },
       { $unwind: '$user' },
       { $project: { _id: 0, userId: '$_id', name: '$user.firstName', username: '$user.username', score: 1 } },
@@ -560,6 +577,17 @@ function createApplication(options = {}) {
       rank = (result?.count || 0) + 1;
     }
     return { rows, ownScore, rank };
+  }
+
+  async function countLeaderboardParticipants(range = null) {
+    const match = { points: { $gt: 0 } };
+    if (range) match.createdAt = { $gte: range.start, $lt: range.end };
+    const [result] = await Ledger.aggregate([
+      { $match: match },
+      { $group: { _id: '$userId' } },
+      { $count: 'count' },
+    ]);
+    return result?.count || 0;
   }
 
   async function currentTasks(userId) {
@@ -733,6 +761,10 @@ function createApplication(options = {}) {
       Markup.button.callback('📋 Topshiriqlar', 'admin_tasks'),
       Markup.button.callback('📢 Kanallar', 'admin_channels'),
     ],
+    [
+      Markup.button.callback('📊 Statistika', 'admin_stats'),
+      Markup.button.callback('📤 Xabar yuborish', 'admin_broadcast'),
+    ],
     [Markup.button.callback('⚙️ Ball va havolalar', 'admin_settings')],
   ]);
 
@@ -838,6 +870,39 @@ function createApplication(options = {}) {
     );
   }
 
+  async function showAdminStatistics(ctx) {
+    const [users, verified, weeklyParticipants, totalParticipants, pendingClaims] = await Promise.all([
+      User.countDocuments(),
+      User.countDocuments({ verified: true }),
+      countLeaderboardParticipants(getWeekRange()),
+      countLeaderboardParticipants(),
+      Claim.countDocuments({ status: 'pending' }),
+    ]);
+    await ctx.reply(
+      `📊 Bot statistikasi\n\nObunachilar: ${users}\nTekshiruvdan o‘tganlar: ${verified}\nHaftalik reyting qatnashchilari: ${weeklyParticipants}\nUmumiy reyting qatnashchilari: ${totalParticipants}\nKutilayotgan topshiriqlar: ${pendingClaims}`,
+      Markup.inlineKeyboard([[Markup.button.callback('⬅️ Admin panel', 'admin_home')]]),
+    );
+  }
+
+  async function broadcastToUsers(text) {
+    let sent = 0;
+    let failed = 0;
+    const cursor = User.find({}, { _id: 1 }).lean().cursor();
+    for await (const user of cursor) {
+      try {
+        await bot.telegram.sendMessage(user._id, text);
+        sent += 1;
+      } catch (error) {
+        failed += 1;
+        if (failed <= 5) {
+          console.error(`Could not deliver admin broadcast to user ${user._id}:`, error.message);
+        }
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    return { sent, failed };
+  }
+
   bot.on('message', async (ctx, next) => {
     const adminId = String(ctx.from?.id || '');
     if (!config.adminIds.has(adminId)) return next();
@@ -922,6 +987,20 @@ function createApplication(options = {}) {
     }
     pendingAdminInputs.delete(adminId);
     const value = ctx.message.text.trim();
+    if (pending.kind === 'broadcast') {
+      if (value === 'Bekor qilish') {
+        await ctx.reply('Xabar yuborish bekor qilindi.');
+        return;
+      }
+      if (!value || value.length > 4000) {
+        await ctx.reply('Xabar 1 dan 4000 belgigacha bo‘lishi kerak. Qaytadan /admin panelidan boshlang.');
+        return;
+      }
+      await ctx.reply('Xabar obunachilarga yuborilmoqda. Tugagach natijani yuboraman.');
+      const { sent, failed } = await broadcastToUsers(value);
+      await ctx.reply(`Yuborish yakunlandi.\nMuvaffaqiyatli: ${sent}\nYetkazilmadi: ${failed}`);
+      return;
+    }
     if (pending.kind === 'instagram') {
       let url;
       try {
@@ -991,7 +1070,18 @@ function createApplication(options = {}) {
 
   bot.start(async (ctx) => {
     const payload = ctx.startPayload || '';
-    await ensureUser(ctx.from, payload);
+    const user = await ensureUser(ctx.from, payload);
+    const firstStart = await User.findOneAndUpdate(
+      { _id: user._id, botStartedAt: null },
+      { $set: { botStartedAt: new Date() } },
+      { new: true },
+    ).select('_id').lean();
+    if (firstStart) {
+      const fullName = [user.firstName, user.lastName].filter(Boolean).join(' ');
+      await notifyAdmins(
+        `👤 ${telegramUserMention(user._id, fullName)} botga yangi obunachi qo‘shildi!`,
+      );
+    }
     if (!config.botUsername) {
       const identity = await bot.telegram.getMe();
       config.botUsername = identity.username;
@@ -1006,6 +1096,17 @@ function createApplication(options = {}) {
   bot.action('admin_home', adminOnly, async (ctx) => {
     await ctx.answerCbQuery();
     await showAdminPanel(ctx);
+  });
+  bot.action('admin_stats', adminOnly, async (ctx) => {
+    await ctx.answerCbQuery();
+    await showAdminStatistics(ctx);
+  });
+  bot.action('admin_broadcast', adminOnly, async (ctx) => {
+    await ctx.answerCbQuery();
+    await promptAdminInput(ctx, {
+      kind: 'broadcast',
+      prompt: 'Barcha obunachilarga yuboriladigan xabarni javob qilib yuboring. Bekor qilish uchun “Bekor qilish” deb yozing.',
+    });
   });
   bot.command('setprize', adminOnly, async (ctx) => {
     const amount = Number((ctx.message.text.split(/\s+/)[1] || '').replace(/[,_\s]/g, ''));
@@ -1594,6 +1695,7 @@ module.exports = {
   isActiveChatMember,
   decorateTelegramButton,
   decorateTelegramReplyMarkup,
+  telegramUserMention,
   toTelegramHtml,
   verifyTelegramInitData,
 };

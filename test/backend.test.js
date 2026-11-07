@@ -11,6 +11,7 @@ const {
   isActiveChatMember,
   decorateTelegramButton,
   decorateTelegramReplyMarkup,
+  telegramUserMention,
   toTelegramHtml,
   verifyTelegramInitData,
 } = require('../server');
@@ -95,6 +96,11 @@ test('Telegram HTML prefixes every message inline and safely escapes message tex
     toTelegramHtml('👋 Xush kelibsiz!'),
     '<tg-emoji emoji-id="5972185031911677527">👋</tg-emoji> Xush kelibsiz!',
   );
+  assert.equal(
+    toTelegramHtml(`👤 ${telegramUserMention('123456', 'Ali <Admin>')}`),
+    '<tg-emoji emoji-id="5972291697424473566">👤</tg-emoji> <a href="tg://user?id=123456">Ali &lt;Admin&gt;</a>',
+  );
+  assert.throws(() => telegramUserMention('invalid', 'Ali'), /must be numeric/);
 });
 
 test('Telegram inline and reply keyboard buttons receive custom emoji icons and supported colors', () => {
@@ -175,6 +181,15 @@ test('all bot sendMessage calls use premium-emoji HTML formatting', async () => 
     { text: 'Tasdiqlash', icon_custom_emoji_id: '5971815857997750999', style: 'success' },
     { text: 'Rad etish', icon_custom_emoji_id: '5971958979192962630', style: 'danger' },
   ]);
+
+  await configuredBot.telegram.sendMessage(
+    12345,
+    `👤 ${telegramUserMention('67890', 'Ali <User>')}`,
+  );
+  assert.equal(
+    request[1].text,
+    '<tg-emoji emoji-id="5972291697424473566">👤</tg-emoji> <a href="tg://user?id=67890">Ali &lt;User&gt;</a>',
+  );
 });
 
 test('.env.example contains only the four deployment secrets/settings', () => {
