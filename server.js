@@ -67,6 +67,7 @@ const BUTTON_EMOJI_IDS = new Map([
   ['🆓', '5974381894798680155'],
   ['👋', '5972185031911677527'],
   ['👤', '5972291697424473566'],
+  ['▶', '5974561351417212974'],
 ]);
 const BUTTON_STYLE_EMOJI_IDS = {
   primary: '5974236196623098000',
@@ -90,9 +91,10 @@ function decorateTelegramButton(button, defaultStyle = 'primary') {
   const label = isEmoji
     ? text.trimStart().slice(firstGrapheme.length).trimStart()
     : text;
+  const { hide, ...telegramButton } = button;
 
   return {
-    ...button,
+    ...telegramButton,
     text: label || text,
     icon_custom_emoji_id: button.icon_custom_emoji_id || emojiId,
     style,
@@ -133,23 +135,32 @@ function toTelegramHtml(value) {
     })[character])}</a>`);
     return placeholder;
   });
-  const leadingText = text.trimStart();
-  const firstGrapheme = BUTTON_GRAPHEME_SEGMENTER
-    .segment(leadingText)[Symbol.iterator]().next().value?.segment;
-  const normalizedEmoji = firstGrapheme?.replace(/\uFE0F/g, '');
-  const emojiId = normalizedEmoji && BUTTON_EMOJI_IDS.get(normalizedEmoji);
-  const messageEmoji = emojiId
-    ? `<tg-emoji emoji-id="${emojiId}">${normalizedEmoji}</tg-emoji>`
-    : '<tg-emoji emoji-id="5972237795584909109">💬</tg-emoji>';
-  const messageText = emojiId
-    ? leadingText.slice(firstGrapheme.length).trimStart()
-    : text;
-  const escaped = messageText.replace(/[&<>]/g, (character) => ({
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-  })[character]).replace(/\u0003(\d+)\u0004/g, (_, index) => userLinks[Number(index)] || '');
-  return `${messageEmoji}${escaped ? ` ${escaped}` : ''}`;
+  const formattedText = text.split('\n').map((line) => {
+    if (!line.trim()) return line;
+    const leadingText = line.trimStart();
+    const firstGrapheme = BUTTON_GRAPHEME_SEGMENTER
+      .segment(leadingText)[Symbol.iterator]().next().value?.segment;
+    const normalizedEmoji = firstGrapheme?.replace(/\uFE0F/g, '');
+    const hasLeadingPremiumEmoji = Boolean(normalizedEmoji && BUTTON_EMOJI_IDS.has(normalizedEmoji));
+    const lineText = hasLeadingPremiumEmoji ? leadingText : line;
+    const prefix = hasLeadingPremiumEmoji
+      ? ''
+      : '<tg-emoji emoji-id="5972237795584909109">💬</tg-emoji> ';
+    const formattedLine = [...BUTTON_GRAPHEME_SEGMENTER.segment(lineText)]
+      .map(({ segment }) => {
+        const emoji = segment.replace(/\uFE0F/g, '');
+        const emojiId = BUTTON_EMOJI_IDS.get(emoji);
+        if (emojiId) return `<tg-emoji emoji-id="${emojiId}">${emoji}</tg-emoji>`;
+        return segment.replace(/[&<>]/g, (character) => ({
+          '&': '&amp;',
+          '<': '&lt;',
+          '>': '&gt;',
+        })[character]);
+      })
+      .join('');
+    return `${prefix}${formattedLine}`;
+  }).join('\n');
+  return formattedText.replace(/\u0003(\d+)\u0004/g, (_, index) => userLinks[Number(index)] || '');
 }
 
 function telegramUserMention(userId, name) {
@@ -862,10 +873,10 @@ function createApplication(options = {}) {
     const latest = await WeeklyAward.findOne({ status: { $in: ['pending', 'paid'] } }).sort({ _id: -1 }).lean();
     const pending = await Claim.countDocuments({ status: 'pending' });
     const awardLine = latest
-      ? `\nSo‘nggi haftalik sovrin: ${latest.status === 'paid' ? 'to‘langan' : 'to‘lash kutilmoqda'}`
-      : '\nHaftalik g‘olib hali aniqlanmagan.';
+      ? `\n🏆 So‘nggi haftalik sovrin: ${latest.status === 'paid' ? 'to‘langan' : 'to‘lash kutilmoqda'}`
+      : '\n🏆 Haftalik g‘olib hali aniqlanmagan.';
     await ctx.reply(
-      `⚙️ Admin panel\n\nHaftalik sovrin: ${Number(config.weeklyPrize).toLocaleString('uz-UZ')} so‘m\nKutilayotgan tasdiqlar: ${pending}${awardLine}\n\nBarcha o‘yin sozlamalari MongoDB’da saqlanadi.`,
+      `⚙️ Admin panel\n\n💰 Haftalik sovrin: ${Number(config.weeklyPrize).toLocaleString('uz-UZ')} so‘m\n📋 Kutilayotgan tasdiqlar: ${pending}${awardLine}\n\n⚙️ Barcha o‘yin sozlamalari MongoDB’da saqlanadi.`,
       adminKeyboard(),
     );
   }
@@ -1087,8 +1098,10 @@ function createApplication(options = {}) {
       config.botUsername = identity.username;
     }
     await ctx.reply(
-      '👋 Viral mini-ilovasiga xush kelibsiz! Do‘st taklif qiling, topshiriqlarni bajaring va haftalik sovrin uchun bellashing.',
-      Markup.inlineKeyboard([[Markup.button.webApp('Mini ilovani ochish', config.appUrl)]]),
+      '👋 Viral mini-ilovasiga xush kelibsiz!\n👥 Do‘st taklif qiling, 📋 topshiriqlarni bajaring va 🏆 haftalik sovrin uchun bellashing.',
+      Markup.inlineKeyboard([[
+        Markup.button.webApp('▶️ Mini ilovani ochish', config.appUrl),
+      ]]),
     );
   });
 

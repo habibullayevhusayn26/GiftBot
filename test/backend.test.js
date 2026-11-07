@@ -97,6 +97,16 @@ test('Telegram HTML prefixes every message inline and safely escapes message tex
     '<tg-emoji emoji-id="5972185031911677527">👋</tg-emoji> Xush kelibsiz!',
   );
   assert.equal(
+    toTelegramHtml('⚙️ Admin panel\nHaftalik sovrin: 50 000 so‘m'),
+    '<tg-emoji emoji-id="5974411495713294659">⚙</tg-emoji> Admin panel\n' +
+      '<tg-emoji emoji-id="5972237795584909109">💬</tg-emoji> Haftalik sovrin: 50 000 so‘m',
+  );
+  assert.equal(
+    toTelegramHtml('👥 Do‘st taklif qiling, 📋 topshiriqlarni bajaring'),
+    '<tg-emoji emoji-id="5974040135661002415">👥</tg-emoji> Do‘st taklif qiling, ' +
+      '<tg-emoji emoji-id="5974423955413409429">📋</tg-emoji> topshiriqlarni bajaring',
+  );
+  assert.equal(
     toTelegramHtml(`👤 ${telegramUserMention('123456', 'Ali <Admin>')}`),
     '<tg-emoji emoji-id="5972291697424473566">👤</tg-emoji> <a href="tg://user?id=123456">Ali &lt;Admin&gt;</a>',
   );
@@ -110,10 +120,11 @@ test('Telegram inline and reply keyboard buttons receive custom emoji icons and 
       { text: '❌ Rad etish', callback_data: 'reject' },
       { text: '🧾 Topshiriqlar', callback_data: 'tasks' },
       { text: 'Mini ilovani ochish', web_app: { url: 'https://example.com' } },
+      { text: '▶️ Mini ilovani ochish', web_app: { url: 'https://example.com' } },
     ]],
   });
 
-  const [approve, reject, tasks, appButton] = markup.inline_keyboard[0];
+  const [approve, reject, tasks, appButton, launchButton] = markup.inline_keyboard[0];
   assert.equal(approve.text, 'Tasdiqlash');
   assert.equal(approve.icon_custom_emoji_id, '5971815857997750999');
   assert.equal(approve.style, 'success');
@@ -125,6 +136,9 @@ test('Telegram inline and reply keyboard buttons receive custom emoji icons and 
   assert.equal(tasks.style, 'primary');
   assert.equal(appButton.icon_custom_emoji_id, '5974236196623098000');
   assert.equal(appButton.style, 'primary');
+  assert.equal(launchButton.text, 'Mini ilovani ochish');
+  assert.equal(launchButton.icon_custom_emoji_id, '5974561351417212974');
+  assert.equal(launchButton.style, 'primary');
 
   const keyboard = decorateTelegramReplyMarkup({
     keyboard: [[
@@ -171,7 +185,8 @@ test('all bot sendMessage calls use premium-emoji HTML formatting', async () => 
   assert.equal(request[1].parse_mode, 'HTML');
   assert.equal(
     request[1].text,
-    '<tg-emoji emoji-id="5972237795584909109">💬</tg-emoji> Taklif ✅',
+    '<tg-emoji emoji-id="5972237795584909109">💬</tg-emoji> Taklif ' +
+      '<tg-emoji emoji-id="5971815857997750999">✅</tg-emoji>',
   );
   assert.deepEqual(request[1].reply_markup.inline_keyboard[0].map((button) => ({
     text: button.text,
@@ -190,6 +205,25 @@ test('all bot sendMessage calls use premium-emoji HTML formatting', async () => 
     request[1].text,
     '<tg-emoji emoji-id="5972291697424473566">👤</tg-emoji> <a href="tg://user?id=67890">Ali &lt;User&gt;</a>',
   );
+
+  await configuredBot.telegram.sendMessage(
+    12345,
+    '👋 Xush kelibsiz!\n🏆 Reytingni oching.',
+    Markup.inlineKeyboard([[
+      Markup.button.webApp('▶️ Mini ilovani ochish', 'https://example.com'),
+    ]]),
+  );
+  assert.equal(
+    request[1].text,
+    '<tg-emoji emoji-id="5972185031911677527">👋</tg-emoji> Xush kelibsiz!\n' +
+      '<tg-emoji emoji-id="5974236196623098000">🏆</tg-emoji> Reytingni oching.',
+  );
+  assert.deepEqual(request[1].reply_markup.inline_keyboard[0][0], {
+    text: 'Mini ilovani ochish',
+    web_app: { url: 'https://example.com' },
+    icon_custom_emoji_id: '5974561351417212974',
+    style: 'primary',
+  });
 });
 
 test('.env.example contains only the four deployment secrets/settings', () => {
