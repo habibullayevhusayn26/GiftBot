@@ -3,11 +3,13 @@ const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
+const { Telegraf } = require('telegraf');
 const {
   createApplication,
   getTashkentDate,
   getWeekRange,
   isActiveChatMember,
+  toTelegramHtml,
   verifyTelegramInitData,
 } = require('../server');
 
@@ -72,6 +74,46 @@ test('Telegram channel membership accepts active members and rejects left users'
   assert.equal(isActiveChatMember({ status: 'restricted', is_member: false }), false);
   assert.equal(isActiveChatMember({ status: 'left' }), false);
   assert.equal(isActiveChatMember({ status: 'kicked' }), false);
+});
+
+test('Telegram HTML upgrades supplied emoji and safely escapes message text', () => {
+  assert.equal(
+    toTelegramHtml('✅ <script>&'),
+    '<tg-emoji emoji-id="5971815857997750999">✅</tg-emoji> &lt;script&gt;&amp;',
+  );
+  assert.equal(
+    toTelegramHtml('Oddiy xabar'),
+    '<tg-emoji emoji-id="5972237795584909109">💬</tg-emoji> Oddiy xabar',
+  );
+  assert.equal(
+    toTelegramHtml('⚙️ sozlama'),
+    '<tg-emoji emoji-id="5974411495713294659">⚙️</tg-emoji> sozlama',
+  );
+});
+
+test('all bot sendMessage calls use premium-emoji HTML formatting', async () => {
+  let request;
+  const bot = new Telegraf('123456:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghi');
+  bot.telegram.callApi = async (...args) => {
+    request = args;
+    return { message_id: 1 };
+  };
+  const { bot: configuredBot } = createApplication({
+    bot,
+    env: {
+      API_TOKEN: '123456:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghi',
+      ADMIN_IDS: '12345',
+      APP_URL: 'https://example.com',
+    },
+  });
+
+  await configuredBot.telegram.sendMessage(12345, 'Taklif ✅');
+  assert.equal(request[0], 'sendMessage');
+  assert.equal(request[1].parse_mode, 'HTML');
+  assert.equal(
+    request[1].text,
+    'Taklif <tg-emoji emoji-id="5971815857997750999">✅</tg-emoji>',
+  );
 });
 
 test('.env.example contains only the four deployment secrets/settings', () => {
