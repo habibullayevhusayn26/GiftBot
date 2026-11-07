@@ -10,6 +10,114 @@ const { Telegraf, Markup } = require('telegraf');
 
 const TIME_ZONE = 'Asia/Tashkent';
 const DAY_MS = 24 * 60 * 60 * 1000;
+const BUTTON_GRAPHEME_SEGMENTER = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+const BUTTON_EMOJI_IDS = new Map([
+  ['📢', '5972335630644943766'],
+  ['👤', '5972291697424473566'],
+  ['💬', '5972237795584909109'],
+  ['⚙', '5974411495713294659'],
+  ['⭐', '5974236196623098000'],
+  ['🏆', '5974236196623098000'],
+  ['📑', '5974361382034874415'],
+  ['🧾', '5974361382034874415'],
+  ['📊', '5974263637169152381'],
+  ['☑', '5974359329040506809'],
+  ['↩', '5974236269637541415'],
+  ['ℹ', '5974375834599825576'],
+  ['❔', '5974037906572974922'],
+  ['📤', '5972094476821208559'],
+  ['🗑', '5974547070650948587'],
+  ['🟢', '5971993132772892584'],
+  ['🔴', '5971791750346317375'],
+  ['🔵', '5974554247541301267'],
+  ['🔘', '5972174195709188934'],
+  ['⚫', '5972174195709188934'],
+  ['🔒', '5974572161849892294'],
+  ['🔽', '5971952742900441015'],
+  ['🔼', '5972251436401040402'],
+  ['🔔', '5974065364298898185'],
+  ['🔕', '5971843878364388155'],
+  ['👁', '5974572660066100705'],
+  ['❗', '5974557361392590882'],
+  ['❌', '5971958979192962630'],
+  ['✅', '5971815857997750999'],
+  ['⚠', '5974422220246621698'],
+  ['📞', '5974501251939835089'],
+  ['📌', '5974471281658044473'],
+  ['🔑', '5974282663874273425'],
+  ['🤖', '5974286039718567531'],
+  ['🛡', '5974572161849892294'],
+  ['⬅', '5971875759906626201'],
+  ['➡', '5972181638887513495'],
+  ['🚫', '5974330050248449728'],
+  ['⛔', '5971877739886549978'],
+  ['🎁', '5974233744196771952'],
+  ['🎈', '5972111119819480137'],
+  ['👥', '5974040135661002415'],
+  ['🔗', '5971990899389897467'],
+  ['📋', '5974423955413409429'],
+  ['🆘', '5974355442095104060'],
+  ['➕', '5974499104456187940'],
+  ['✏', '5972259270421388355'],
+  ['💰', '5974587847070457906'],
+  ['🔧', '5971977417487556055'],
+  ['🆕', '5972306957443276463'],
+  ['📍', '5974418891646967544'],
+  ['🎲', '5974411534367989550'],
+  ['🆓', '5974381894798680155'],
+]);
+const BUTTON_STYLE_EMOJI_IDS = {
+  primary: '5974236196623098000',
+  success: '5971815857997750999',
+  danger: '5971958979192962630',
+};
+
+function decorateTelegramButton(button, defaultStyle = 'primary') {
+  if (typeof button === 'string') button = { text: button };
+  if (!button || typeof button !== 'object' || typeof button.text !== 'string') return button;
+
+  const text = button.text;
+  const firstGrapheme = BUTTON_GRAPHEME_SEGMENTER
+    .segment(text.trimStart())[Symbol.iterator]().next().value?.segment;
+  const normalizedEmoji = firstGrapheme?.replace(/\uFE0F/g, '');
+  const isEmoji = normalizedEmoji && /[\p{Extended_Pictographic}\u2190-\u2BFF]/u.test(normalizedEmoji);
+  const style = button.style || defaultStyle;
+  const emojiId = (isEmoji && BUTTON_EMOJI_IDS.get(normalizedEmoji)) ||
+    BUTTON_STYLE_EMOJI_IDS[style] ||
+    BUTTON_STYLE_EMOJI_IDS.primary;
+  const label = isEmoji
+    ? text.trimStart().slice(firstGrapheme.length).trimStart()
+    : text;
+
+  return {
+    ...button,
+    text: label || text,
+    icon_custom_emoji_id: button.icon_custom_emoji_id || emojiId,
+    style,
+  };
+}
+
+function decorateTelegramReplyMarkup(replyMarkup) {
+  if (!replyMarkup || typeof replyMarkup !== 'object') return replyMarkup;
+  if (Array.isArray(replyMarkup.inline_keyboard)) {
+    return {
+      ...replyMarkup,
+      inline_keyboard: replyMarkup.inline_keyboard.map((row) => row.map((button) => {
+        const label = typeof button === 'string' ? button : button.text || '';
+        const danger = /rad etish|o‘chirish|olib tashlash|bekor qilish/i.test(label);
+        const success = /tasdiqlash|pul yuborildi|yoqish/i.test(label);
+        return decorateTelegramButton(button, danger ? 'danger' : success ? 'success' : 'primary');
+      })),
+    };
+  }
+  if (Array.isArray(replyMarkup.keyboard)) {
+    return {
+      ...replyMarkup,
+      keyboard: replyMarkup.keyboard.map((row) => row.map((button) => decorateTelegramButton(button))),
+    };
+  }
+  return replyMarkup;
+}
 
 function toTelegramHtml(value) {
   const escaped = String(value).replace(/[&<>]/g, (character) => ({
@@ -217,15 +325,18 @@ function createApplication(options = {}) {
   const bot = options.bot || new Telegraf(botToken);
   const originalCallApi = bot.telegram.callApi.bind(bot.telegram);
   bot.telegram.callApi = (method, payload, ...args) => {
+    const markupPayload = payload.reply_markup
+      ? { ...payload, reply_markup: decorateTelegramReplyMarkup(payload.reply_markup) }
+      : payload;
     if (method === 'sendMessage' && typeof payload.text === 'string') {
-      const { entities, ...message } = payload;
+      const { entities, ...message } = markupPayload;
       return originalCallApi(method, {
         ...message,
         text: toTelegramHtml(payload.text),
         parse_mode: 'HTML',
       }, ...args);
     }
-    return originalCallApi(method, payload, ...args);
+    return originalCallApi(method, markupPayload, ...args);
   };
   const app = express();
   const pendingAdminInputs = new Map();
@@ -1468,6 +1579,8 @@ module.exports = {
   getTashkentDate,
   getWeekRange,
   isActiveChatMember,
+  decorateTelegramButton,
+  decorateTelegramReplyMarkup,
   toTelegramHtml,
   verifyTelegramInitData,
 };

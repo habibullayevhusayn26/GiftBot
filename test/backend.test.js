@@ -3,12 +3,14 @@ const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
-const { Telegraf } = require('telegraf');
+const { Markup, Telegraf } = require('telegraf');
 const {
   createApplication,
   getTashkentDate,
   getWeekRange,
   isActiveChatMember,
+  decorateTelegramButton,
+  decorateTelegramReplyMarkup,
   toTelegramHtml,
   verifyTelegramInitData,
 } = require('../server');
@@ -91,6 +93,50 @@ test('Telegram HTML prefixes every message inline and safely escapes message tex
   );
 });
 
+test('Telegram inline and reply keyboard buttons receive custom emoji icons and supported colors', () => {
+  const markup = decorateTelegramReplyMarkup({
+    inline_keyboard: [[
+      { text: '✅ Tasdiqlash', callback_data: 'approve' },
+      { text: '❌ Rad etish', callback_data: 'reject' },
+      { text: '🧾 Topshiriqlar', callback_data: 'tasks' },
+      { text: 'Mini ilovani ochish', web_app: { url: 'https://example.com' } },
+    ]],
+  });
+
+  const [approve, reject, tasks, appButton] = markup.inline_keyboard[0];
+  assert.equal(approve.text, 'Tasdiqlash');
+  assert.equal(approve.icon_custom_emoji_id, '5971815857997750999');
+  assert.equal(approve.style, 'success');
+  assert.equal(reject.text, 'Rad etish');
+  assert.equal(reject.icon_custom_emoji_id, '5971958979192962630');
+  assert.equal(reject.style, 'danger');
+  assert.equal(tasks.text, 'Topshiriqlar');
+  assert.equal(tasks.icon_custom_emoji_id, '5974361382034874415');
+  assert.equal(tasks.style, 'primary');
+  assert.equal(appButton.icon_custom_emoji_id, '5974236196623098000');
+  assert.equal(appButton.style, 'primary');
+
+  const keyboard = decorateTelegramReplyMarkup({
+    keyboard: [[
+      { text: '📢 Kanalni tanlash', request_chat: { request_id: 1, chat_is_channel: true } },
+      'Bekor qilish',
+    ]],
+    resize_keyboard: true,
+  });
+  const [channelButton, cancelButton] = keyboard.keyboard[0];
+  assert.equal(channelButton.text, 'Kanalni tanlash');
+  assert.equal(channelButton.icon_custom_emoji_id, '5972335630644943766');
+  assert.equal(channelButton.style, 'primary');
+  assert.equal(cancelButton.style, 'primary');
+  assert.equal(cancelButton.icon_custom_emoji_id, '5974236196623098000');
+
+  assert.deepEqual(decorateTelegramButton({ text: 'X', style: 'danger' }), {
+    text: 'X',
+    style: 'danger',
+    icon_custom_emoji_id: '5971958979192962630',
+  });
+});
+
 test('all bot sendMessage calls use premium-emoji HTML formatting', async () => {
   let request;
   const bot = new Telegraf('123456:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghi');
@@ -107,13 +153,24 @@ test('all bot sendMessage calls use premium-emoji HTML formatting', async () => 
     },
   });
 
-  await configuredBot.telegram.sendMessage(12345, 'Taklif ✅');
+  await configuredBot.telegram.sendMessage(12345, 'Taklif ✅', Markup.inlineKeyboard([[
+    Markup.button.callback('✅ Tasdiqlash', 'approve'),
+    Markup.button.callback('❌ Rad etish', 'reject'),
+  ]]));
   assert.equal(request[0], 'sendMessage');
   assert.equal(request[1].parse_mode, 'HTML');
   assert.equal(
     request[1].text,
     '<tg-emoji emoji-id="5972237795584909109">💬</tg-emoji> Taklif ✅',
   );
+  assert.deepEqual(request[1].reply_markup.inline_keyboard[0].map((button) => ({
+    text: button.text,
+    icon_custom_emoji_id: button.icon_custom_emoji_id,
+    style: button.style,
+  })), [
+    { text: 'Tasdiqlash', icon_custom_emoji_id: '5971815857997750999', style: 'success' },
+    { text: 'Rad etish', icon_custom_emoji_id: '5971958979192962630', style: 'danger' },
+  ]);
 });
 
 test('.env.example contains only the four deployment secrets/settings', () => {
