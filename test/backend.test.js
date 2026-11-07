@@ -7,7 +7,12 @@ const { Markup, Telegraf } = require('telegraf');
 const {
   createApplication,
   getTashkentDate,
+  getTashkentDayRange,
+  getNextSundayAnnouncement,
+  getNextDailyReminder,
   getWeekRange,
+  normalizePromoCode,
+  isReferralEligible,
   getTelegramRetryDelay,
   getReferralGiftMilestones,
   getReferralGiftProgress,
@@ -81,6 +86,52 @@ test('weekly boundaries follow the Tashkent Monday-to-Monday week', () => {
   assert.equal(getTashkentDate(new Date('2026-11-07T19:00:00Z')), '2026-11-08');
 });
 
+test('Tashkent calendar-day ranges include the full local day', () => {
+  const range = getTashkentDayRange(new Date('2026-11-08T19:00:00Z'));
+  assert.equal(range.start.toISOString(), '2026-11-08T19:00:00.000Z');
+  assert.equal(range.end.toISOString(), '2026-11-09T19:00:00.000Z');
+});
+
+test('weekly announcement is scheduled for Sunday 23:59 Tashkent time', () => {
+  const before = getNextSundayAnnouncement(new Date('2026-11-07T18:00:00Z'));
+  const after = getNextSundayAnnouncement(new Date('2026-11-08T19:00:00Z'));
+  assert.equal(before.toISOString(), '2026-11-08T18:59:00.000Z');
+  assert.equal(after.toISOString(), '2026-11-15T18:59:00.000Z');
+});
+
+test('daily reminder is scheduled for 20:00 Tashkent time', () => {
+  assert.equal(
+    getNextDailyReminder(new Date('2026-11-08T14:00:00Z')).toISOString(),
+    '2026-11-08T15:00:00.000Z',
+  );
+  assert.equal(
+    getNextDailyReminder(new Date('2026-11-08T15:00:00Z')).toISOString(),
+    '2026-11-09T15:00:00.000Z',
+  );
+});
+
+test('promo codes are normalized and reject unsupported input', () => {
+  assert.equal(normalizePromoCode('  yangi_2026  '), 'YANGI_2026');
+  for (const code of ['abc', 'a'.repeat(33), 'SAVE 20', 'SO‘G‘A', '', null]) {
+    assert.throws(() => normalizePromoCode(code), /Promo-kod/);
+  }
+});
+
+test('referrals require a verified invited user with at least one approved task', () => {
+  const referredUser = {
+    _id: '456',
+    invitedBy: '123',
+    verified: true,
+    banned: false,
+    referralRewarded: false,
+  };
+  assert.equal(isReferralEligible(referredUser, true), true);
+  assert.equal(isReferralEligible(referredUser, false), false);
+  assert.equal(isReferralEligible({ ...referredUser, verified: false }, true), false);
+  assert.equal(isReferralEligible({ ...referredUser, referralRewarded: true }, true), false);
+  assert.equal(isReferralEligible({ ...referredUser, banned: true }, true), false);
+});
+
 test('Telegram connection retries use capped exponential backoff', () => {
   assert.equal(getTelegramRetryDelay(1), 1000);
   assert.equal(getTelegramRetryDelay(2), 2000);
@@ -136,14 +187,20 @@ test('leaderboard includes every verified user and gives users without points a 
   };
   const pipeline = buildLeaderboardPipeline('ledgers', range);
 
-  assert.deepEqual(pipeline[0], { $match: { verified: true } });
+  assert.deepEqual(pipeline[0], {
+    $match: {
+      verified: true,
+      banned: { $ne: true },
+      referralReviewStatus: { $ne: 'rejected' },
+    },
+  });
   assert.deepEqual(pipeline[1].$lookup.pipeline[0].$match, {
     $expr: { $eq: ['$userId', '$$leaderboardUserId'] },
-    points: { $gt: 0 },
+    points: { $ne: 0 },
     createdAt: { $gte: range.start, $lt: range.end },
   });
   assert.deepEqual(pipeline[2].$project.score, {
-    $ifNull: [{ $arrayElemAt: ['$ledgerTotals.score', 0] }, 0],
+    $max: [0, { $ifNull: [{ $arrayElemAt: ['$ledgerTotals.score', 0] }, 0] }],
   });
   assert.equal(pipeline[2].$project.photoUrl, '$photoUrl');
   assert.deepEqual(pipeline[3], { $sort: { score: -1, userId: 1 } });
@@ -312,7 +369,7 @@ test('Telegram HTML prefixes every message inline and safely escapes message tex
   );
   assert.equal(
     toTelegramHtml('Oddiy xabar'),
-    '<tg-emoji emoji-id="5972237795584909109">💬</tg-emoji> Oddiy xabar',
+    '<tg-emoji emoji-id="5406631276042002796">📨</tg-emoji> Oddiy xabar',
   );
   assert.equal(
     toTelegramHtml('⚙️ sozlama'),
@@ -325,7 +382,7 @@ test('Telegram HTML prefixes every message inline and safely escapes message tex
   assert.equal(
     toTelegramHtml('⚙️ Admin panel\nHaftalik sovrin: 50 000 so‘m'),
     '<tg-emoji emoji-id="5974411495713294659">⚙</tg-emoji> Admin panel\n' +
-      '<tg-emoji emoji-id="5972237795584909109">💬</tg-emoji> Haftalik sovrin: 50 000 so‘m',
+      '<tg-emoji emoji-id="5472030678633684592">💸</tg-emoji> Haftalik sovrin: 50 000 so‘m',
   );
   assert.equal(
     toTelegramHtml('👥 Do‘st taklif qiling, 📋 topshiriqlarni bajaring'),
@@ -436,7 +493,7 @@ test('all bot sendMessage calls use premium-emoji HTML formatting', async () => 
   assert.equal(request[1].parse_mode, 'HTML');
   assert.equal(
     request[1].text,
-    '<tg-emoji emoji-id="5972237795584909109">💬</tg-emoji> Taklif ' +
+    '<tg-emoji emoji-id="5974040135661002415">👥</tg-emoji> Taklif ' +
       '<tg-emoji emoji-id="5971815857997750999">✅</tg-emoji>',
   );
   assert.deepEqual(request[1].reply_markup.inline_keyboard[0].map((button) => ({
@@ -526,6 +583,19 @@ test('game defaults do not read rewards or bot identity from environment variabl
   assert.equal(config.botUsername, '');
   assert.equal(config.channelUrl, '');
   assert.equal(config.referralGift, null);
+  assert.equal(config.dailyReferralThreshold, 10);
+  assert.equal(config.promoRedemptionLimit, 100);
+  assert.equal(config.levelRewardCoins, 100);
+});
+
+test('rules file and level badge animation are present and valid', () => {
+  const rules = fs.readFileSync(path.join(__dirname, '..', 'QOIDALAR.txt'), 'utf8');
+  const badge = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'icons', 'level-badge.json'), 'utf8'));
+  assert.match(rules, /Haftalik sovrin/);
+  assert.match(rules, /kamida bitta topshiriq/);
+  assert.equal(badge.w, 512);
+  assert.equal(badge.h, 512);
+  assert.ok(Array.isArray(badge.layers));
 });
 
 test('API health is public but game data rejects unsigned requests', async (t) => {
@@ -558,6 +628,9 @@ test('API health is public but game data rejects unsigned requests', async (t) =
   assert.match(await miniApp.text(), /<title>Viral<\/title>/);
   const background = await fetch(`${baseUrl}/assets/background.png`);
   assert.equal(background.status, 200);
+  const badge = await fetch(`${baseUrl}/icons/level-badge.json`);
+  assert.equal(badge.status, 200);
+  assert.equal((await badge.json()).w, 512);
   const backendSource = await fetch(`${baseUrl}/server.js`);
   assert.equal(backendSource.status, 404);
 });

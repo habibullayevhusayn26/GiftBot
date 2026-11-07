@@ -14,6 +14,24 @@ const CONFIG = {
 
 const tg = window.Telegram?.WebApp;
 const LIVE_MODE = Boolean(tg?.initData && CONFIG.API_URL);
+function getDeviceId() {
+  const key = 'viral_device_id';
+  try {
+    let id = localStorage.getItem(key);
+    if (!id) {
+      id = typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : [...crypto.getRandomValues(new Uint8Array(24))]
+          .map((byte) => byte.toString(16).padStart(2, '0')).join('');
+      localStorage.setItem(key, id);
+    }
+    return id;
+  } catch {
+    return [...crypto.getRandomValues(new Uint8Array(24))]
+      .map((byte) => byte.toString(16).padStart(2, '0')).join('');
+  }
+}
+const DEVICE_ID = getDeviceId();
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -38,6 +56,7 @@ const ANIMATION_FILES = {
   '🐝': 'CAACAgIAAxUAAWrkatVhpX2V3u61T9vhljAzLbAZAAJoJwAC4IIZS8G7gG_BkEfcPQQ.json',
   '🦋': 'CAACAgIAAxUAAWrkatVi8Ijflog5XbltFUZBL2knAAKtGAACft6QS4KaEwABzy5KqT0E.json',
   '🎁': 'gift.json',
+  '🏅': 'level-badge.json',
   '🐴': 'CAACAgIAAxUAAWrkatVqRN4aIrRXWrk2Js4G-qZOAAJWJQACEMgYSlAlJtMfL4jUPQQ.json',
   '🍓': 'CAACAgIAAxUAAWrkatVVl2Tf2qK5a5bbVlXMULX0AAKEHAACgjbpS5BZvCO3vc7GPQQ.json',
   '🐔': 'CAACAgIAAxUAAWrkatVXTY2zUCFzTvz9Lixpfhu5AAIlKgACTLRRSd0YIMfPUIGaPQQ.json',
@@ -206,7 +225,12 @@ async function api(path, opts = {}) {
   if (!LIVE_MODE) return null;
   const res = await fetch(CONFIG.API_URL + path, {
     ...opts,
-    headers: { 'Content-Type': 'application/json', 'X-Telegram-Init-Data': tg?.initData || '', ...(opts.headers || {}) },
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Telegram-Init-Data': tg?.initData || '',
+      'X-Device-ID': DEVICE_ID,
+      ...(opts.headers || {}),
+    },
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || `Server xatosi (${res.status})`);
@@ -293,6 +317,7 @@ function renderHome() {
   countUp($('#balance'), u.balance);
   const L = levelOf(u.balance);
   $('#levelName').textContent = `${L.n}-daraja`;
+  $('#levelBadge').hidden = L.n < 2;
   $('#levelNext').textContent = `${fmt(u.balance)} / ${fmt(L.hi)}`;
   setTimeout(() => ($('#levelBar').style.width = L.pct + '%'), 80);
   $('#statFriends').textContent = LIVE_MODE ? (demo.user.referralCount || 0) : demo.friends.length;

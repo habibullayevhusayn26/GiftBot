@@ -1,0 +1,62 @@
+VIRAL MINI-ILOVASI — FAQ VA QOIDALAR
+
+1. Coin va darajalar
+- Coinlar kunlik bonus, topshiriqlar, promo-kod va tasdiqlangan takliflar orqali olinadi.
+- Har bir yangi darajaga birinchi marta chiqqanda 100 coin bir marta beriladi. Admin panelidagi sozlamada bu miqdor o‘zgartirilishi mumkin.
+- Har bir darajaning maxsus nishoni Mini-ilovadagi daraja yonida ko‘rsatiladi.
+- Coin va darajalar pul qiymatiga ega emas; ular Mini-ilova ichidagi hisob ko‘rsatkichidir.
+- Har 10 ta tasdiqlangan referral uchun, botda gift tanlangan va mavjud bo‘lsa, Telegram gift beriladi. Referral talablari bajarilmagan yoki admin tekshiruvidagi takliflar hisoblanmaydi.
+
+2. Kunlik bonus va ketma-ket kunlar
+- Kunlik bonusni Mini-ilovaning bosh sahifasidan har kuni bir marta oling.
+- Kun oxiriga yaqin bonus olinmagan bo‘lsa, bot soat 20:00 da eslatma yuboradi (Toshkent vaqti).
+- Bonusni olish uchun eslatmadagi tugma orqali Mini-ilovani oching.
+- Bir kun o‘tkazib yuborilsa, ketma-ket kunlar hisoblagichi yangidan boshlanadi.
+
+3. Takliflar va referral mukofoti
+- Taklif qilgan do‘stingiz botni ishga tushirib, Mini-ilovadagi tekshiruvni bajarganidan keyin kamida bitta topshiriqni yakunlashi kerak.
+- Majburiy kanal obunasi saqlangan holda tekshiriladi. Shartlar bajarilmaguncha referral bonusi berilmaydi.
+- O‘z akkauntingizni taklif qilish yoki soxta akkauntlar ochish taqiqlanadi.
+- Bir kunda 10 tadan ko‘p tasdiqlangan referral admin tekshiruviga tushadi.
+- Qurilmadan 30 kun ichida 5 ta, IP manzildan 24 soat ichida 5 ta akkaunt ochish limiti qo‘llanadi. Umumiy tarmoqdan foydalanish sabab xato cheklov bo‘lsa, admin bilan bog‘laning.
+
+4. Haftalik reyting va sovrin
+- Haftalik hisob Toshkent vaqti bilan dushanba 00:00 dan keyingi dushanba 00:00 gacha yuritiladi.
+- Bot yakshanba 23:59 da (Toshkent vaqti) top-10 ishtirokchi va g‘olibni obunachilarga e’lon qiladi.
+- Shubhali referral bo‘yicha admin tekshiruvi tugamaguncha haftalik e’lon va sovrin vaqtincha kutishi mumkin.
+- Haftalik sovrin miqdori admin panelida ko‘rsatiladi. G‘olibga pulni admin botdan tashqarida yuboradi; to‘lovni bot avtomatik amalga oshirmaydi.
+- Standart haftalik sovrin 100 000 so‘m; admin miqdorni o‘zgartirishi mumkin. Mini-ilovada amaldagi miqdor ko‘rsatiladi.
+- Sovrin yuborilgach, admin panelida “Pul yuborildi” holatini belgilaydi.
+
+5. Promo-kodlar
+- Faol promo-kod va uning coin mukofoti e’lon kanalida ko‘rsatiladi.
+- Foydalanish uchun botga /promo KOD yuboring.
+- Har bir foydalanuvchi bir koddan faqat bir marta foydalanishi mumkin.
+- Kod umumiy foydalanish limiti tugaguncha ishlaydi. Admin limitni boshqaradi.
+- Yaroqsiz, o‘chirilgan yoki limiti tugagan kod coin bermaydi.
+
+6. Topshiriqlar va profil
+- Kanal topshirig‘i uchun bot kanal a’zoligini tekshiradi.
+- Qo‘lda tekshiriladigan topshiriq admin tasdiqlaganidan keyin coin beradi.
+- Takliflar, coin balansi va topshiriqlar holati Profil va Do‘stlar bo‘limlarida ko‘rsatiladi.
+
+7. Cheklov va apellyatsiya
+- Qoidani buzish, botdan foydalanishni suiiste’mol qilish yoki shubhali faollik akkauntni tekshiruvga yoki bloklashga olib kelishi mumkin.
+- Akkaunt bloklangan yoki referral/sovrin qarori noto‘g‘ri deb hisoblasangiz, bot administratoriga Telegram ID raqamingiz va qisqa izoh bilan murojaat qiling.
+- Administrator tekshiruvi natijasiga ko‘ra referral tasdiqlanadi yoki sovrin hisobidan chiqariladi.
+
+Savol-javob
+Q: Bonusni qayerdan olaman?
+A: Mini-ilovaning Bosh sahifasidagi “Kunlik bonusni olish” tugmasidan.
+
+Q: Referral qachon hisoblanadi?
+A: Taklif qilingan do‘st tekshiruvdan o‘tib, kamida bitta topshiriqni bajargach va majburiy obunalar tasdiqlangach.
+
+Q: Coinni pulga almashtirish mumkinmi?
+A: Yo‘q. Faqat haftalik sovrin alohida tartibda beriladi; u admin tomonidan botdan tashqarida yuboriladi.
+
+Q: Promo-kodni qayerga yuboraman?
+A: Bot chatida /promo KOD buyrug‘i orqali.
+
+Q: Reytingda shubhali hisob ko‘rinsa nima bo‘ladi?
+A: G‘olib e’lonidan oldin admin referralni ko‘rib chiqadi. Tekshiruv tugaguncha e’lon kechikishi mumkin.

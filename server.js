@@ -15,6 +15,13 @@ const TELEGRAM_RETRY_BASE_MS = 1000;
 const TELEGRAM_RETRY_MAX_MS = 60000;
 const MAX_DONATION_STARS = 10000000;
 const DONATION_INVOICE_TTL_MS = 24 * 60 * 60 * 1000;
+const LEVEL_THRESHOLDS = [100, 300, 700, 1500, 3000, 6000];
+const DEFAULT_DAILY_REFERRAL_THRESHOLD = 10;
+const DEFAULT_DEVICE_ACCOUNT_LIMIT = 5;
+const DEFAULT_IP_ACCOUNT_LIMIT = 5;
+const DEVICE_ACCOUNT_WINDOW_MS = 30 * DAY_MS;
+const IP_ACCOUNT_WINDOW_MS = DAY_MS;
+const DAILY_REMINDER_HOUR = 20;
 const BUTTON_GRAPHEME_SEGMENTER = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
 const BUTTON_EMOJI_IDS = new Map([
   ['📢', '5972335630644943766'],
@@ -163,6 +170,11 @@ const LINE_EMOJI_RULES = [
   [/urinish/, '🔄'],
   [/holat/, '📌'],
   [/xabar/, '📨'],
+  [/promo|kod/, '🆕'],
+  [/shubhali|tekshiruv/, '🛡'],
+  [/qidir|foydalanuvchi/, '👤'],
+  [/blok|ban/, '🚫'],
+  [/qoid|faq|sovrin/, 'ℹ'],
 ];
 function pickLineEmoji(lineText) {
   const plain = lineText.toLowerCase().replace(/[‘’'ʻ`]/g, '');
@@ -302,11 +314,17 @@ function getReferralGiftProgress(referralCount) {
 function buildLeaderboardPipeline(ledgerCollection, range = null) {
   const ledgerMatch = {
     $expr: { $eq: ['$userId', '$$leaderboardUserId'] },
-    points: { $gt: 0 },
+    points: { $ne: 0 },
   };
   if (range) ledgerMatch.createdAt = { $gte: range.start, $lt: range.end };
   return [
-    { $match: { verified: true } },
+    {
+      $match: {
+        verified: true,
+        banned: { $ne: true },
+        referralReviewStatus: { $ne: 'rejected' },
+      },
+    },
     {
       $lookup: {
         from: ledgerCollection,
@@ -325,7 +343,9 @@ function buildLeaderboardPipeline(ledgerCollection, range = null) {
         name: '$firstName',
         username: '$username',
         photoUrl: '$photoUrl',
-        score: { $ifNull: [{ $arrayElemAt: ['$ledgerTotals.score', 0] }, 0] },
+        score: {
+          $max: [0, { $ifNull: [{ $arrayElemAt: ['$ledgerTotals.score', 0] }, 0] }],
+        },
       },
     },
     { $sort: { score: -1, userId: 1 } },
@@ -472,6 +492,10 @@ const DEFAULTS = {
   invite3Reward: 200,
   dailyBonusBase: 20,
   dailyStreakBonus: 10,
+  dailyReferralThreshold: DEFAULT_DAILY_REFERRAL_THRESHOLD,
+  promoRedemptionLimit: 100,
+  promoChannelId: '',
+  levelRewardCoins: 100,
   referralGift: null,
   channelChatId: '',
   channelUrl: '',
@@ -485,6 +509,59 @@ function getTashkentDate(date = new Date()) {
     month: '2-digit',
     day: '2-digit',
   }).format(date);
+}
+
+function getTashkentDayRange(date = new Date()) {
+  const day = getTashkentDate(date);
+  const start = new Date(`${day}T00:00:00+05:00`);
+  return { start, end: new Date(start.getTime() + DAY_MS) };
+}
+
+function getNextSundayAnnouncement(date = new Date()) {
+  const localNow = new Date(date.getTime() + 5 * 60 * 60 * 1000);
+  const daysUntilSunday = (7 - localNow.getUTCDay()) % 7;
+  let announcement = new Date(Date.UTC(
+    localNow.getUTCFullYear(),
+    localNow.getUTCMonth(),
+    localNow.getUTCDate() + daysUntilSunday,
+    23,
+    59,
+  ) - 5 * 60 * 60 * 1000);
+  if (announcement.getTime() <= date.getTime()) {
+    announcement = new Date(announcement.getTime() + 7 * DAY_MS);
+  }
+  return announcement;
+}
+
+function getNextDailyReminder(date = new Date()) {
+  const localNow = new Date(date.getTime() + 5 * 60 * 60 * 1000);
+  const reminderDay = new Date(Date.UTC(
+    localNow.getUTCFullYear(),
+    localNow.getUTCMonth(),
+    localNow.getUTCDate() + (localNow.getUTCHours() >= DAILY_REMINDER_HOUR ? 1 : 0),
+    DAILY_REMINDER_HOUR,
+  ));
+  return new Date(reminderDay.getTime() - 5 * 60 * 60 * 1000);
+}
+
+function normalizePromoCode(value) {
+  if (typeof value !== 'string') throw new Error('Promo-kod 4–32 belgidan iborat bo‘lishi kerak.');
+  const code = value.trim().toUpperCase();
+  if (!/^[A-Z0-9_-]{4,32}$/.test(code)) {
+    throw new Error('Promo-kod faqat A–Z, 0–9, _ yoki - belgilaridan iborat bo‘lsin (4–32 belgi).');
+  }
+  return code;
+}
+
+function isReferralEligible(user, hasCompletedTask) {
+  return Boolean(
+    user &&
+    user.invitedBy &&
+    user.verified &&
+    !user.banned &&
+    !user.referralRewarded &&
+    hasCompletedTask,
+  );
 }
 
 function getWeekRange(date = new Date()) {
@@ -539,7 +616,12 @@ const userSchema = new mongoose.Schema({
   verified: { type: Boolean, default: false },
   streak: { type: Number, default: 0 },
   lastDailyDate: { type: String, default: '' },
+  lastDailyReminderDate: { type: String, default: '' },
   botStartedAt: { type: Date, default: null },
+  referralRewardedAt: { type: Date, default: null },
+  referralReviewStatus: { type: String, enum: ['clear', 'pending', 'approved', 'rejected'], default: 'clear' },
+  referralReviewReason: { type: String, default: '' },
+  banned: { type: Boolean, default: false },
 }, { timestamps: true, versionKey: false });
 
 const ledgerSchema = new mongoose.Schema({
@@ -587,12 +669,18 @@ captchaSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 const weeklyAwardSchema = new mongoose.Schema({
   _id: { type: String },
+  weekStart: { type: Date, default: null },
+  weekEnd: { type: Date, default: null },
   userId: { type: String, default: '' },
   points: { type: Number, default: 0 },
   amount: { type: Number, required: true },
   status: { type: String, enum: ['pending', 'paid', 'empty'], default: 'pending' },
   paidAt: { type: Date, default: null },
   paidBy: { type: String, default: '' },
+  topTen: { type: [mongoose.Schema.Types.Mixed], default: [] },
+  reviewPending: { type: Boolean, default: false },
+  announcedAt: { type: Date, default: null },
+  announcementStatus: { type: String, enum: ['pending', 'sending', 'sent'], default: 'pending' },
 }, { timestamps: true, versionKey: false });
 
 const settingSchema = new mongoose.Schema({
@@ -606,7 +694,7 @@ const referralGiftSchema = new mongoose.Schema({
   referralCount: { type: Number, required: true },
   giftId: { type: String, default: '' },
   giftStars: { type: Number, default: 0 },
-  status: { type: String, enum: ['pending', 'sending', 'sent', 'failed', 'unknown'], default: 'pending' },
+  status: { type: String, enum: ['pending', 'sending', 'sent', 'failed', 'unknown', 'cancelled'], default: 'pending' },
   error: { type: String, default: '' },
   sentAt: { type: Date, default: null },
 }, { timestamps: true, versionKey: false });
@@ -623,6 +711,30 @@ const donationSchema = new mongoose.Schema({
   paidAt: { type: Date, default: null },
 }, { timestamps: true, versionKey: false });
 
+const accountSignalSchema = new mongoose.Schema({
+  _id: { type: String },
+  deviceHash: { type: String, default: '', index: true },
+  ipHash: { type: String, default: '', index: true },
+}, { timestamps: { createdAt: true, updatedAt: false }, versionKey: false });
+accountSignalSchema.index({ createdAt: 1 }, { expireAfterSeconds: 60 * 24 * 60 * 60 });
+
+const promoSchema = new mongoose.Schema({
+  _id: { type: String },
+  reward: { type: Number, min: 1, required: true },
+  redemptionLimit: { type: Number, min: 1, required: true },
+  usedCount: { type: Number, default: 0 },
+  enabled: { type: Boolean, default: true },
+  createdBy: { type: String, required: true },
+}, { timestamps: true, versionKey: false });
+
+const promoRedemptionSchema = new mongoose.Schema({
+  _id: { type: String },
+  userId: { type: String, required: true },
+  code: { type: String, required: true },
+  status: { type: String, enum: ['pending', 'redeemed'], default: 'pending' },
+}, { timestamps: true, versionKey: false });
+promoRedemptionSchema.index({ userId: 1, code: 1 }, { unique: true });
+
 const User = mongoose.model('User', userSchema);
 const Ledger = mongoose.model('Ledger', ledgerSchema);
 const Task = mongoose.model('Task', taskSchema);
@@ -632,6 +744,9 @@ const WeeklyAward = mongoose.model('WeeklyAward', weeklyAwardSchema);
 const Setting = mongoose.model('Setting', settingSchema);
 const ReferralGift = mongoose.model('ReferralGift', referralGiftSchema);
 const Donation = mongoose.model('Donation', donationSchema);
+const AccountSignal = mongoose.model('AccountSignal', accountSignalSchema);
+const Promo = mongoose.model('Promo', promoSchema);
+const PromoRedemption = mongoose.model('PromoRedemption', promoRedemptionSchema);
 
 class HttpError extends Error {
   constructor(status, message) {
@@ -719,6 +834,7 @@ function createApplication(options = {}) {
   const pendingChannelSelections = new Map();
   const referralGiftCatalogs = new Map();
   app.disable('x-powered-by');
+  app.set('trust proxy', 1);
   app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
   app.use(express.json({ limit: '32kb' }));
   app.use('/api', rateLimit({
@@ -736,8 +852,54 @@ function createApplication(options = {}) {
     config[key] = value;
   }
 
-  async function ensureUser(telegramUser, startParam = '') {
+  function accountSignalHash(namespace, value) {
+    return crypto.createHmac('sha256', botToken).update(`${namespace}:${value}`).digest('hex');
+  }
+
+  async function registerAccountSignal(userId, req) {
+    if (await AccountSignal.exists({ _id: userId })) return;
+    const rawDeviceId = req.get('X-Device-ID') || '';
+    if (rawDeviceId && !/^[a-zA-Z0-9_-]{20,128}$/.test(rawDeviceId)) {
+      throw new HttpError(400, 'Qurilma identifikatori noto‘g‘ri.');
+    }
+    const deviceHash = rawDeviceId ? accountSignalHash('device', rawDeviceId) : '';
+    const ipAddress = req.ip || req.socket?.remoteAddress || '';
+    const ipHash = ipAddress ? accountSignalHash('ip', ipAddress) : '';
+    const now = new Date();
+    const countChecks = [];
+    if (deviceHash) {
+      countChecks.push(AccountSignal.countDocuments({
+        deviceHash,
+        createdAt: { $gte: new Date(now.getTime() - DEVICE_ACCOUNT_WINDOW_MS) },
+      }));
+    } else {
+      countChecks.push(Promise.resolve(0));
+    }
+    if (ipHash) {
+      countChecks.push(AccountSignal.countDocuments({
+        ipHash,
+        createdAt: { $gte: new Date(now.getTime() - IP_ACCOUNT_WINDOW_MS) },
+      }));
+    } else {
+      countChecks.push(Promise.resolve(0));
+    }
+    const [deviceAccounts, ipAccounts] = await Promise.all(countChecks);
+    if (deviceHash && deviceAccounts >= DEFAULT_DEVICE_ACCOUNT_LIMIT) {
+      throw new HttpError(429, 'Bu qurilmada akkauntlar soni limitga yetdi. Admin bilan bog‘laning.');
+    }
+    if (ipHash && ipAccounts >= DEFAULT_IP_ACCOUNT_LIMIT) {
+      throw new HttpError(429, 'Bu internet tarmog‘idan juda ko‘p akkaunt ochilgan. Admin tekshiruvini kuting.');
+    }
+    try {
+      await AccountSignal.create({ _id: userId, deviceHash, ipHash });
+    } catch (error) {
+      if (error.code !== 11000) throw error;
+    }
+  }
+
+  async function ensureUser(telegramUser, startParam = '', requestContext = null) {
     const id = String(telegramUser.id);
+    if (requestContext) await registerAccountSignal(id, requestContext);
     const refMatch = /^ref_(\d+)$/.exec(startParam);
     const inviterId = refMatch && refMatch[1] !== id ? refMatch[1] : null;
     const firstName = String(telegramUser.first_name || 'Foydalanuvchi').slice(0, 64);
@@ -753,9 +915,15 @@ function createApplication(options = {}) {
   function authenticate(req, res, next) {
     const verified = verifyTelegramInitData(req.get('X-Telegram-Init-Data'), config.botToken);
     if (!verified) return next(new HttpError(401, 'Telegram sessiyasi yaroqsiz yoki eskirgan. Mini ilovani qayta oching.'));
-    req.telegram = verified.user;
-    req.startParam = verified.startParam;
-    next();
+    User.findById(String(verified.user.id)).select('banned').lean().then((user) => {
+      if (user?.banned) {
+        next(new HttpError(403, 'Akkauntingiz bloklangan. Yordam uchun admin bilan bog‘laning.'));
+        return;
+      }
+      req.telegram = verified.user;
+      req.startParam = verified.startParam;
+      next();
+    }).catch(next);
   }
 
   const requireVerified = asyncRoute(async (req, res, next) => {
@@ -767,17 +935,122 @@ function createApplication(options = {}) {
 
   async function addPoints(userId, points, type, key, details = '') {
     if (!Number.isSafeInteger(points) || points <= 0) throw new Error('Point rewards must be positive integers.');
+    let inserted = false;
     try {
       const result = await Ledger.updateOne(
         { key },
         { $setOnInsert: { userId: String(userId), points, type, key, details } },
         { upsert: true },
       );
-      return result.upsertedCount === 1;
+      inserted = result.upsertedCount === 1;
     } catch (error) {
       if (error.code === 11000) return false;
       throw error;
     }
+    if (!inserted) {
+      await awardLevelRewards(userId);
+      return false;
+    }
+    await awardLevelRewards(userId);
+    return true;
+  }
+
+  async function awardLevelRewards(userId) {
+    let balance = await getPointTotal(userId);
+    for (let index = 0; index < LEVEL_THRESHOLDS.length; index += 1) {
+      const threshold = LEVEL_THRESHOLDS[index];
+      if (balance < threshold) break;
+      const level = index + 2;
+      const key = `level:${userId}:${level}`;
+      let result;
+      try {
+        result = await Ledger.updateOne(
+          { key },
+          {
+            $setOnInsert: {
+              userId: String(userId),
+              points: config.levelRewardCoins,
+              type: 'level',
+              key,
+              details: `${level}-daraja bir martalik mukofoti`,
+            },
+          },
+          { upsert: true },
+        );
+      } catch (error) {
+        if (error.code === 11000) continue;
+        throw error;
+      }
+      if (result.upsertedCount !== 1) continue;
+      try {
+        await bot.telegram.sendMessage(
+          userId,
+          `🎉 Tabriklaymiz! Siz ${level}-darajaga yetdingiz. Bir martalik mukofot: +${config.levelRewardCoins} coin. Maxsus nishon profilingizda!`,
+        );
+      } catch (error) {
+        console.error(`Could not notify user ${userId} about level ${level}:`, error.message);
+      }
+    }
+  }
+
+  async function addAdminAdjustment(userId, points, key, details) {
+    if (!Number.isSafeInteger(points) || points === 0) {
+      throw new Error('Admin point adjustments must be non-zero integers.');
+    }
+    let inserted = false;
+    try {
+      const result = await Ledger.updateOne(
+        { key },
+        { $setOnInsert: { userId: String(userId), points, type: 'admin_adjustment', key, details } },
+        { upsert: true },
+      );
+      inserted = result.upsertedCount === 1;
+    } catch (error) {
+      if (error.code === 11000) return false;
+      throw error;
+    }
+    if (!inserted) return false;
+    if (points > 0) await awardLevelRewards(userId);
+    return true;
+  }
+
+  async function redeemPromoCode(userId, rawCode) {
+    let code;
+    try {
+      code = normalizePromoCode(rawCode);
+    } catch (error) {
+      throw new HttpError(400, error.message);
+    }
+    const promo = await Promo.findOne({ _id: code, enabled: true }).lean();
+    if (!promo) throw new HttpError(404, 'Promo-kod topilmadi yoki faol emas.');
+    if (promo.usedCount >= promo.redemptionLimit) throw new HttpError(409, 'Bu promo-koddan foydalanish limiti tugagan.');
+
+    const redemptionId = `${code}:${userId}`;
+    try {
+      await PromoRedemption.create({
+        _id: redemptionId,
+        userId: String(userId),
+        code,
+        status: 'pending',
+      });
+    } catch (error) {
+      if (error.code === 11000) throw new HttpError(409, 'Siz bu promo-koddan avval foydalangansiz.');
+      throw error;
+    }
+
+    const reserved = await Promo.findOneAndUpdate(
+      { _id: code, enabled: true, usedCount: { $lt: promo.redemptionLimit } },
+      { $inc: { usedCount: 1 } },
+      { new: true },
+    ).lean();
+    if (!reserved) {
+      await PromoRedemption.deleteOne({ _id: redemptionId, status: 'pending' });
+      throw new HttpError(409, 'Bu promo-koddan foydalanish limiti tugagan.');
+    }
+
+    await addPoints(userId, promo.reward, 'promo', `promo:${code}:${userId}`, `Promo-kod ${code}`);
+    await PromoRedemption.updateOne({ _id: redemptionId }, { $set: { status: 'redeemed' } });
+    return { code, reward: promo.reward };
   }
 
   async function isMemberOfRequiredChannels(userId) {
@@ -799,15 +1072,15 @@ function createApplication(options = {}) {
   }
 
   async function awardReferral(user) {
-    if (!user.invitedBy || user.referralRewarded || !user.verified) return;
+    if (!isReferralEligible(user, await Claim.exists({ userId: user._id, status: 'approved' }))) return;
     if (!(await isMemberOfRequiredChannels(user._id))) return;
     const inviter = await User.findById(user.invitedBy);
-    if (!inviter) return;
+    if (!inviter || inviter.banned) return;
     await addPoints(inviter._id, config.refReward, 'referral', `referrer:${user._id}`, `Taklif: ${user.firstName}`);
     await addPoints(user._id, config.refBonus, 'referral', `referred:${user._id}`, 'Taklif havolasi orqali qo‘shildi');
     const result = await User.updateOne(
       { _id: user._id, referralRewarded: false },
-      { $set: { referralRewarded: true } },
+      { $set: { referralRewarded: true, referralRewardedAt: new Date() } },
     );
     if (result.modifiedCount === 1) {
       try {
@@ -818,6 +1091,41 @@ function createApplication(options = {}) {
       } catch (error) {
         console.error(`Could not notify referrer ${inviter._id}:`, error.message);
       }
+      const dayRange = getTashkentDayRange();
+      const dailyReferralCount = await User.countDocuments({
+        invitedBy: inviter._id,
+        referralRewardedAt: { $gte: dayRange.start, $lt: dayRange.end },
+      });
+      if (dailyReferralCount > config.dailyReferralThreshold) {
+        const flagged = await User.updateOne(
+          {
+            _id: inviter._id,
+            $or: [
+              { referralReviewStatus: { $in: ['clear', 'rejected'] } },
+              { referralReviewStatus: { $exists: false } },
+            ],
+          },
+          {
+            $set: {
+              referralReviewStatus: 'pending',
+              referralReviewReason: `${dailyReferralCount} ta tasdiqlangan taklif / ${getTashkentDate()}`,
+            },
+          },
+        );
+        if (flagged.modifiedCount === 1) {
+          await notifyAdmins(
+            `🛡 Shubhali referral faolligi\nFoydalanuvchi: ${telegramUserMention(inviter._id, [inviter.firstName, inviter.lastName].filter(Boolean).join(' '))}\nKunlik tasdiqlangan takliflar: ${dailyReferralCount}\nMukofotdan oldin tekshiring.`,
+            Markup.inlineKeyboard([[
+              Markup.button.callback('✅ Tasdiqlash', `referral_review_approve_${inviter._id}`),
+              Markup.button.callback('🚫 Shubhali deb belgilash', `referral_review_reject_${inviter._id}`),
+            ]]),
+          );
+        }
+      }
+      const referralReviewPending = Boolean(await User.exists({
+        _id: inviter._id,
+        referralReviewStatus: 'pending',
+      }));
       const referralCount = await User.countDocuments({
         invitedBy: inviter._id,
         referralRewarded: true,
@@ -839,12 +1147,13 @@ function createApplication(options = {}) {
             { upsert: true },
           );
           if (queued.upsertedCount !== 1) continue;
-          if (config.referralGift?.id) {
+          if (config.referralGift?.id && !referralReviewPending) {
             await deliverReferralGift(awardId);
           } else {
             await notifyAdmins(
               `🎁 ${telegramUserMention(inviter._id, [inviter.firstName, inviter.lastName].filter(Boolean).join(' '))} ` +
-              `${milestone} ta tasdiqlangan do‘st taklif qildi. Sovg‘ani yuborish uchun /admin panelida gift tanlang.`,
+              `${milestone} ta tasdiqlangan do‘st taklif qildi. ` +
+              `${referralReviewPending ? 'Referral tekshiruvigacha gift navbatda turadi.' : 'Sovg‘ani yuborish uchun /admin panelida gift tanlang.'}`,
               referralGiftKeyboard(),
             );
           }
@@ -914,7 +1223,10 @@ function createApplication(options = {}) {
       reward: config.instagramReward,
       url: config.instagramUrl,
     } });
-    for (const key of ['weeklyPrize', 'refReward', 'refBonus', 'channelReward', 'instagramReward', 'invite3Reward', 'dailyBonusBase', 'dailyStreakBonus']) {
+    for (const key of [
+      'weeklyPrize', 'refReward', 'refBonus', 'channelReward', 'instagramReward', 'invite3Reward',
+      'dailyBonusBase', 'dailyStreakBonus', 'dailyReferralThreshold', 'promoRedemptionLimit', 'levelRewardCoins',
+    ]) {
       const value = Number(config[key]);
       if (!Number.isSafeInteger(value) || value < 1) {
         throw new Error(`MongoDB setting "${key}" must be a positive integer.`);
@@ -924,7 +1236,7 @@ function createApplication(options = {}) {
   }
 
   async function getPointTotal(userId, range = null) {
-    const match = { userId: String(userId), points: { $gt: 0 } };
+    const match = { userId: String(userId), points: { $ne: 0 } };
     if (range) match.createdAt = { $gte: range.start, $lt: range.end };
     const [result] = await Ledger.aggregate([
       { $match: match },
@@ -936,15 +1248,34 @@ function createApplication(options = {}) {
   async function leaderboard(period, currentUserId) {
     const range = period === 'week' ? getWeekRange() : null;
     const rows = await User.aggregate(buildLeaderboardPipeline(Ledger.collection.name, range));
-    const ownScore = await getPointTotal(currentUserId, range);
+    const currentUser = await User.findById(currentUserId).select('referralReviewStatus banned').lean();
+    const ownScore = currentUser?.banned || currentUser?.referralReviewStatus === 'rejected'
+      ? 0
+      : await getPointTotal(currentUserId, range);
     let rank = null;
     if (ownScore > 0) {
-      const higherMatch = { points: { $gt: 0 } };
+      const higherMatch = { points: { $ne: 0 } };
       if (range) higherMatch.createdAt = { $gte: range.start, $lt: range.end };
       const [result] = await Ledger.aggregate([
         { $match: higherMatch },
         { $group: { _id: '$userId', score: { $sum: '$points' } } },
         { $match: { score: { $gt: ownScore } } },
+        {
+          $lookup: {
+            from: User.collection.name,
+            localField: '_id',
+            foreignField: '_id',
+            as: 'user',
+          },
+        },
+        { $unwind: '$user' },
+        {
+          $match: {
+            'user.verified': true,
+            'user.banned': { $ne: true },
+            'user.referralReviewStatus': { $ne: 'rejected' },
+          },
+        },
         { $count: 'count' },
       ]);
       rank = (result?.count || 0) + 1;
@@ -953,7 +1284,11 @@ function createApplication(options = {}) {
   }
 
   async function countLeaderboardParticipants() {
-    return User.countDocuments({ verified: true });
+    return User.countDocuments({
+      verified: true,
+      banned: { $ne: true },
+      referralReviewStatus: { $ne: 'rejected' },
+    });
   }
 
   async function currentTasks(userId) {
@@ -1011,6 +1346,8 @@ function createApplication(options = {}) {
         rank: weekRank.rank,
         referralCount,
         streak: current.streak,
+        level: 1 + LEVEL_THRESHOLDS.filter((threshold) => balance >= threshold).length,
+        levelRewardCoins: config.levelRewardCoins,
         dailyClaimed: current.lastDailyDate === getTashkentDate(),
       },
       tasks,
@@ -1258,9 +1595,138 @@ function createApplication(options = {}) {
         colored('📤 Xabar yuborish', 'admin_broadcast', 'danger'),
       ],
       [colored('🎁 Referral sovg‘asi', 'admin_referral_gift', 'success')],
+      [
+        colored('👤 Foydalanuvchini qidirish', 'admin_users', 'primary'),
+        colored('🆕 Promo-kodlar', 'admin_promos', 'success'),
+      ],
+      [colored('🛡 Shubhali referrallar', 'admin_referral_reviews', 'danger')],
       [colored('⚙️ Ball va havolalar', 'admin_settings', 'primary')],
     ]);
   };
+
+  async function showAdminUser(ctx, userId) {
+    if (!/^\d{1,20}$/.test(String(userId))) {
+      await ctx.reply('Telegram ID faqat raqamlardan iborat bo‘lishi kerak.');
+      return;
+    }
+    const user = await User.findById(String(userId)).lean();
+    if (!user) {
+      await ctx.reply('Bunday foydalanuvchi topilmadi.');
+      return;
+    }
+    const [balance, inviter, referralCount] = await Promise.all([
+      getPointTotal(user._id),
+      user.invitedBy ? User.findById(user.invitedBy).select('firstName lastName username').lean() : null,
+      User.countDocuments({ invitedBy: user._id }),
+    ]);
+    const fullName = [user.firstName, user.lastName].filter(Boolean).join(' ');
+    const inviterLine = inviter
+      ? `${[inviter.firstName, inviter.lastName].filter(Boolean).join(' ')} (ID ${user.invitedBy})`
+      : 'yo‘q';
+    const referralLine = user.referralReviewStatus === 'pending'
+      ? `\nShubhali: ${user.referralReviewReason || 'admin tekshiruvini kutmoqda'}`
+      : '';
+    const rows = [
+      [
+        Markup.button.callback('➕ Coin qo‘shish', `user_adjust_add_${user._id}`),
+        Markup.button.callback('➖ Coin ayirish', `user_adjust_sub_${user._id}`),
+      ],
+      [Markup.button.callback('👥 Taklif qilganlarini ko‘rish', `user_referrals_${user._id}`)],
+      [Markup.button.callback(user.banned ? '🔓 Blokdan chiqarish' : '🚫 Bloklash', `user_ban_${user._id}`)],
+    ];
+    if (user.referralReviewStatus === 'pending') {
+      rows.push([
+        Markup.button.callback('✅ Referralni tasdiqlash', `referral_review_approve_${user._id}`),
+        Markup.button.callback('🚫 Sovrindan chetlatish', `referral_review_reject_${user._id}`),
+      ]);
+    }
+    rows.push([Markup.button.callback('⬅️ Admin panel', 'admin_home')]);
+    await ctx.reply(
+      `👤 Foydalanuvchi\n${telegramUserMention(user._id, fullName)}${user.username ? ` (@${user.username})` : ''}\n` +
+      `Telegram ID: ${user._id}\nCoin balansi: ${balance}\nTaklif qilgan: ${inviterLine}\n` +
+      `Taklif qilganlar: ${referralCount}\nTekshiruv: ${user.verified ? 'tasdiqlangan' : 'kutilmoqda'}\n` +
+      `Holati: ${user.banned ? 'bloklangan' : 'faol'}${referralLine}`,
+      Markup.inlineKeyboard(rows),
+    );
+  }
+
+  async function showReferralReviewQueue(ctx) {
+    const users = await User.find({ referralReviewStatus: 'pending' })
+      .sort({ updatedAt: 1 }).limit(20).lean();
+    if (!users.length) {
+      await ctx.reply('Admin tekshiruvini kutayotgan shubhali referral yo‘q.', Markup.inlineKeyboard([
+        [Markup.button.callback('⬅️ Admin panel', 'admin_home')],
+      ]));
+      return;
+    }
+    for (const user of users) {
+      const count = await User.countDocuments({ invitedBy: user._id, referralRewarded: true });
+      await ctx.reply(
+        `🛡 Shubhali referral\nFoydalanuvchi: ${telegramUserMention(user._id, user.firstName)} (ID ${user._id})\n` +
+        `Sabab: ${user.referralReviewReason || 'kunlik referral chegarasi'}\nTaklif qilgan jami: ${count}`,
+        Markup.inlineKeyboard([[
+          Markup.button.callback('✅ Tasdiqlash', `referral_review_approve_${user._id}`),
+          Markup.button.callback('🚫 Sovrindan chetlatish', `referral_review_reject_${user._id}`),
+        ]]),
+      );
+    }
+  }
+
+  async function updateReferralReview(userId, decision, adminId) {
+    const status = decision === 'approve' ? 'approved' : 'rejected';
+    const result = await User.updateOne(
+      { _id: String(userId), referralReviewStatus: 'pending' },
+      {
+        $set: {
+          referralReviewStatus: status,
+          referralReviewReason: `${status} by admin ${adminId}`,
+        },
+      },
+    );
+    if (result.modifiedCount !== 1) return false;
+    if (decision === 'approve' && config.referralGift?.id) {
+      const queuedGifts = await ReferralGift.find({ userId: String(userId), status: 'pending' })
+        .sort({ referralCount: 1 }).select('_id').lean();
+      for (const gift of queuedGifts) {
+        await deliverReferralGift(gift._id);
+      }
+    } else if (decision === 'reject') {
+      await ReferralGift.updateMany(
+        { userId: String(userId), status: 'pending' },
+        { $set: { status: 'cancelled', error: 'Admin referralni sovrindan chetlatdi.' } },
+      );
+    }
+    await resolvePendingWeeklyAwards();
+    return true;
+  }
+
+  async function showPromoSettings(ctx) {
+    const selectedChannel = config.promoChannelId
+      ? await Task.findOne({ _id: config.promoChannelId, type: 'channel' }).select('title').lean()
+      : null;
+    const channels = await Task.find({ type: 'channel', enabled: true }).sort({ title: 1 }).lean();
+    const promos = await Promo.find().sort({ createdAt: -1 }).limit(10).lean();
+    const rows = channels.map((channel) => [Markup.button.callback(
+      `${channel._id === config.promoChannelId ? '✅' : '📢'} ${channel.title}`.slice(0, 60),
+      `promo_channel_${channel._id}`,
+    )]);
+    if (config.promoChannelId) rows.push([Markup.button.callback('🗑 E’lon kanalini tozalash', 'promo_channel_clear')]);
+    rows.push([Markup.button.callback(`🔢 Kod limiti: ${config.promoRedemptionLimit}`, 'setting_edit_promoRedemptionLimit')]);
+    rows.push([Markup.button.callback('➕ Promo-kod yaratish', 'promo_create')]);
+    rows.push([Markup.button.callback('⬅️ Admin panel', 'admin_home')]);
+    const recent = promos.length
+      ? `\n\nSo‘nggi kodlar:\n${promos.map((promo) =>
+        `${promo.enabled ? '🟢' : '⚫'} ${promo._id} — ${promo.usedCount}/${promo.redemptionLimit}, +${promo.reward} coin`,
+      ).join('\n')}`
+      : '';
+    await ctx.reply(
+      `🆕 Promo-kodlar\nE’lon kanali: ${selectedChannel?.title || 'tanlanmagan'}\n` +
+      `Har bir kod uchun ishlatish limiti: ${config.promoRedemptionLimit}\n` +
+      `Kanal tanlang, so‘ng kod yarating. Kod kanalda e’lon qilinadi; foydalanuvchi botga /promo KOD yuboradi.` +
+      recent,
+      Markup.inlineKeyboard(rows),
+    );
+  }
 
   async function showChannelSettings(ctx, page = 0) {
     const pageSize = 8;
@@ -1339,6 +1805,8 @@ function createApplication(options = {}) {
       ['Do‘st taklif qilish topshirig‘i', 'invite3Reward'],
       ['Kunlik bonus', 'dailyBonusBase'],
       ['Ketma-ket kun bonusi', 'dailyStreakBonus'],
+      ['Kunlik shubhali referral chegarasi', 'dailyReferralThreshold'],
+      ['Daraja uchun bir martalik coin', 'levelRewardCoins'],
     ];
     const rows = keys.map(([title, key]) => [Markup.button.callback(
       `✏️ ${title}: ${Number(config[key]).toLocaleString('uz-UZ')}`,
@@ -1378,13 +1846,13 @@ function createApplication(options = {}) {
     );
   }
 
-  async function broadcastToUsers(text) {
+  async function broadcastToUsers(text, extra = {}) {
     let sent = 0;
     let failed = 0;
     const cursor = User.find({}, { _id: 1 }).lean().cursor();
     for await (const user of cursor) {
       try {
-        await bot.telegram.sendMessage(user._id, text);
+        await bot.telegram.sendMessage(user._id, text, extra);
         sent += 1;
       } catch (error) {
         failed += 1;
@@ -1568,11 +2036,96 @@ function createApplication(options = {}) {
     }
     pendingAdminInputs.delete(adminId);
     const value = ctx.message.text.trim();
-    if (pending.kind === 'broadcast') {
-      if (value === 'Bekor qilish') {
-        await ctx.reply('Xabar yuborish bekor qilindi.');
+    if (value === 'Bekor qilish') {
+      await ctx.reply('Amal bekor qilindi.');
+      return;
+    }
+    if (pending.kind === 'user_search') {
+      await showAdminUser(ctx, value);
+      return;
+    }
+    if (pending.kind === 'user_adjust') {
+      const amount = Number(value.replace(/[,_\s]/g, ''));
+      if (!Number.isSafeInteger(amount) || amount < 1 || amount > 1_000_000_000) {
+        await ctx.reply('Coin miqdori 1 dan 1 000 000 000 gacha butun son bo‘lishi kerak.');
         return;
       }
+      const user = await User.findById(pending.userId);
+      if (!user) {
+        await ctx.reply('Foydalanuvchi topilmadi.');
+        return;
+      }
+      const balance = await getPointTotal(user._id);
+      if (pending.direction < 0 && amount > balance) {
+        await ctx.reply(`Balans yetarli emas. Joriy balans: ${balance} coin.`);
+        return;
+      }
+      const adjustment = amount * pending.direction;
+      await addAdminAdjustment(
+        user._id,
+        adjustment,
+        `admin-adjustment:${crypto.randomUUID()}`,
+        `Admin ${adminId} qo‘lda ${adjustment > 0 ? '+' : ''}${adjustment} coin o‘zgartirdi`,
+      );
+      await ctx.reply(`Balans yangilandi: ${balance} → ${balance + adjustment} coin.`);
+      await showAdminUser(ctx, user._id);
+      return;
+    }
+    if (pending.kind === 'promo_create') {
+      const parts = value.split(/\s+/);
+      if (parts.length !== 2) {
+        await ctx.reply('Format: KOD COIN (masalan, YANGI2026 250). Qaytadan boshlang.');
+        return;
+      }
+      let code;
+      try {
+        code = normalizePromoCode(parts[0]);
+      } catch (error) {
+        await ctx.reply(error.message);
+        return;
+      }
+      const reward = Number(parts[1].replace(/[,_]/g, ''));
+      if (!Number.isSafeInteger(reward) || reward < 1 || reward > 1_000_000_000) {
+        await ctx.reply('Coin mukofoti 1 dan 1 000 000 000 gacha butun son bo‘lishi kerak.');
+        return;
+      }
+      const channel = await Task.findOne({ _id: config.promoChannelId, type: 'channel', enabled: true }).lean();
+      if (!channel) {
+        await ctx.reply('Promo e’lon kanali endi faol emas. Admin panelida qayta tanlang.');
+        return;
+      }
+      try {
+        await Promo.create({
+          _id: code,
+          reward,
+          redemptionLimit: config.promoRedemptionLimit,
+          createdBy: adminId,
+        });
+      } catch (error) {
+        if (error.code === 11000) {
+          await ctx.reply('Bu promo-kod allaqachon yaratilgan. Boshqa kod tanlang.');
+          return;
+        }
+        throw error;
+      }
+      try {
+        await bot.telegram.sendMessage(
+          channel.chatId,
+          `🆕 Promo-kod: ${code}\n🎁 Mukofot: ${reward} coin\n` +
+          `Foydalanish limiti: ${config.promoRedemptionLimit} ta.\n` +
+          `Koddan foydalanish uchun botga /promo ${code} yuboring.`,
+        );
+      } catch (error) {
+        await Promo.updateOne({ _id: code }, { $set: { enabled: false } });
+        console.error(`Promo ${code} created but could not be announced in ${channel.chatId}:`, error);
+        await ctx.reply(`Kod yaratildi, lekin kanalda e’lon qilinmadi va vaqtincha o‘chirildi: ${error.message}`);
+        return;
+      }
+      await ctx.reply(`Promo-kod ${code} yaratildi va ${channel.title} kanalida e’lon qilindi.`);
+      await showPromoSettings(ctx);
+      return;
+    }
+    if (pending.kind === 'broadcast') {
       if (!value || value.length > 4000) {
         await ctx.reply('Xabar 1 dan 4000 belgigacha bo‘lishi kerak. Qaytadan /admin panelidan boshlang.');
         return;
@@ -1616,10 +2169,19 @@ function createApplication(options = {}) {
     }
     const settingKeys = new Set([
       'weeklyPrize', 'refReward', 'refBonus', 'channelReward', 'instagramReward',
-      'invite3Reward', 'dailyBonusBase', 'dailyStreakBonus',
+      'invite3Reward', 'dailyBonusBase', 'dailyStreakBonus', 'dailyReferralThreshold',
+      'promoRedemptionLimit', 'levelRewardCoins',
     ]);
     if (!settingKeys.has(pending.key)) {
       await ctx.reply('Noma’lum sozlama.');
+      return;
+    }
+    if (pending.key === 'dailyReferralThreshold' && amount > 10000) {
+      await ctx.reply('Kunlik chegara 1 dan 10 000 gacha bo‘lishi kerak.');
+      return;
+    }
+    if (pending.key === 'promoRedemptionLimit' && amount > 1_000_000) {
+      await ctx.reply('Promo-kod limiti 1 dan 1 000 000 gacha bo‘lishi kerak.');
       return;
     }
     await saveSetting(pending.key, amount);
@@ -1652,6 +2214,10 @@ function createApplication(options = {}) {
   bot.start(async (ctx) => {
     const payload = ctx.startPayload || '';
     const user = await ensureUser(ctx.from, payload);
+    if (user.banned) {
+      await ctx.reply('Akkauntingiz bloklangan. Yordam uchun admin bilan bog‘laning.');
+      return;
+    }
     const firstStart = await User.findOneAndUpdate(
       { _id: user._id, botStartedAt: null },
       { $set: { botStartedAt: new Date() } },
@@ -1671,6 +2237,31 @@ function createApplication(options = {}) {
     );
   });
 
+  bot.command('promo', async (ctx) => {
+    const userId = String(ctx.from.id);
+    const user = await User.findById(userId).lean();
+    if (user?.banned) {
+      await ctx.reply('Akkauntingiz bloklangan. Yordam uchun admin bilan bog‘laning.');
+      return;
+    }
+    if (!user?.verified) {
+      await ctx.reply('Promo-koddan foydalanish uchun Mini-ilovada avval tekshiruvni bajaring.');
+      return;
+    }
+    const code = ctx.message.text.replace(/^\/promo(?:@\w+)?\s*/i, '').trim();
+    if (!code) {
+      await ctx.reply('Promo-kodni yuborish formati: /promo KOD');
+      return;
+    }
+    try {
+      const result = await redeemPromoCode(userId, code);
+      await ctx.reply(`Promo-kod qabul qilindi! +${result.reward} coin balansingizga qo‘shildi.`);
+    } catch (error) {
+      if (!(error instanceof HttpError)) throw error;
+      await ctx.reply(error.message);
+    }
+  });
+
   bot.command('admin', adminOnly, showAdminPanel);
   bot.action('admin_home', adminOnly, async (ctx) => {
     await ctx.answerCbQuery();
@@ -1679,6 +2270,109 @@ function createApplication(options = {}) {
   bot.action('admin_stats', adminOnly, async (ctx) => {
     await ctx.answerCbQuery();
     await showAdminStatistics(ctx);
+  });
+  bot.action('admin_users', adminOnly, async (ctx) => {
+    await ctx.answerCbQuery();
+    await promptAdminInput(ctx, {
+      kind: 'user_search',
+      prompt: 'Foydalanuvchining Telegram ID raqamini yuboring.',
+    });
+  });
+  bot.action('admin_referral_reviews', adminOnly, async (ctx) => {
+    await ctx.answerCbQuery();
+    await showReferralReviewQueue(ctx);
+  });
+  bot.action(/^referral_review_(approve|reject)_(\d{1,20})$/, adminOnly, async (ctx) => {
+    await ctx.answerCbQuery();
+    const updated = await updateReferralReview(ctx.match[2], ctx.match[1], ctx.from.id);
+    await ctx.reply(updated
+      ? `Referral tekshiruvi yakunlandi: ${ctx.match[1] === 'approve' ? 'tasdiqlandi' : 'sovrindan chetlatildi'}.`
+      : 'Bu referral allaqachon ko‘rib chiqilgan.');
+    await showReferralReviewQueue(ctx);
+  });
+  bot.action(/^user_ban_(\d{1,20})$/, adminOnly, async (ctx) => {
+    await ctx.answerCbQuery();
+    const user = await User.findById(ctx.match[1]);
+    if (!user) {
+      await ctx.reply('Foydalanuvchi topilmadi.');
+      return;
+    }
+    user.banned = !user.banned;
+    await user.save();
+    await ctx.reply(`Foydalanuvchi ${user.banned ? 'bloklandi' : 'blokdan chiqarildi'}.`);
+    await showAdminUser(ctx, user._id);
+  });
+  bot.action(/^user_adjust_(add|sub)_(\d{1,20})$/, adminOnly, async (ctx) => {
+    await ctx.answerCbQuery();
+    await promptAdminInput(ctx, {
+      kind: 'user_adjust',
+      userId: ctx.match[2],
+      direction: ctx.match[1] === 'add' ? 1 : -1,
+      prompt: `Foydalanuvchi ${ctx.match[2]} uchun ${ctx.match[1] === 'add' ? 'qo‘shiladigan' : 'ayiriladigan'} coin miqdorini yuboring (1–1 000 000 000).`,
+    });
+  });
+  bot.action(/^user_referrals_(\d{1,20})$/, adminOnly, async (ctx) => {
+    await ctx.answerCbQuery();
+    const userId = ctx.match[1];
+    const [inviter, referrals, totalReferrals] = await Promise.all([
+      User.findById(userId).select('firstName').lean(),
+      User.find({ invitedBy: userId }).sort({ createdAt: -1 }).limit(20)
+        .select('firstName username referralRewarded referralReviewStatus createdAt').lean(),
+      User.countDocuments({ invitedBy: userId }),
+    ]);
+    if (!inviter) {
+      await ctx.reply('Foydalanuvchi topilmadi.');
+      return;
+    }
+    const list = referrals.length
+      ? referrals.map((friend, index) =>
+        `${index + 1}. ${friend.firstName}${friend.username ? ` (@${friend.username})` : ''} — ` +
+        `${friend.referralRewarded ? 'mukofotlangan' : 'hali tasdiqlanmagan'}${friend.referralReviewStatus === 'pending' ? ', tekshiruvda' : ''}`,
+      ).join('\n')
+      : 'Hali taklif qilingan foydalanuvchi yo‘q.';
+    await ctx.reply(
+      `👥 ${inviter.firstName} (ID ${userId}) taklif qilganlar (${totalReferrals}):\n` +
+      `${list}${totalReferrals > referrals.length ? `\n… yana ${totalReferrals - referrals.length} ta` : ''}`,
+      Markup.inlineKeyboard([[Markup.button.callback('⬅️ Foydalanuvchi', `user_show_${userId}`)]]),
+    );
+  });
+  bot.action(/^user_show_(\d{1,20})$/, adminOnly, async (ctx) => {
+    await ctx.answerCbQuery();
+    await showAdminUser(ctx, ctx.match[1]);
+  });
+  bot.action('admin_promos', adminOnly, async (ctx) => {
+    await ctx.answerCbQuery();
+    await showPromoSettings(ctx);
+  });
+  bot.action(/^promo_channel_(?!clear$)([a-z0-9_-]{2,40})$/, adminOnly, async (ctx) => {
+    await ctx.answerCbQuery();
+    const channel = await Task.findOne({ _id: ctx.match[1], type: 'channel', enabled: true }).lean();
+    if (!channel) {
+      await ctx.reply('Faol kanal topilmadi. Kanallar bo‘limini tekshiring.');
+      return;
+    }
+    await saveSetting('promoChannelId', channel._id);
+    await ctx.reply(`Promo-kod e’lonlari uchun kanal tanlandi: ${channel.title}`);
+    await showPromoSettings(ctx);
+  });
+  bot.action('promo_channel_clear', adminOnly, async (ctx) => {
+    await ctx.answerCbQuery();
+    await saveSetting('promoChannelId', '');
+    await ctx.reply('Promo-kod e’lon kanali olib tashlandi.');
+    await showPromoSettings(ctx);
+  });
+  bot.action('promo_create', adminOnly, async (ctx) => {
+    await ctx.answerCbQuery();
+    const channel = await Task.findOne({ _id: config.promoChannelId, type: 'channel', enabled: true });
+    if (!channel) {
+      await ctx.reply('Avval promo-kod e’lon qilinadigan faol kanalni tanlang.');
+      await showPromoSettings(ctx);
+      return;
+    }
+    await promptAdminInput(ctx, {
+      kind: 'promo_create',
+      prompt: 'Yangi promo-kod va coin mukofotini yuboring: KOD COIN (masalan, YANGI2026 250).',
+    });
   });
   bot.action('admin_broadcast', adminOnly, async (ctx) => {
     await ctx.answerCbQuery();
@@ -1889,6 +2583,13 @@ function createApplication(options = {}) {
       await ctx.reply(`Hafta ${award._id}: ball to‘plagan foydalanuvchi bo‘lmadi.`);
       return;
     }
+    if (award.reviewPending) {
+      await ctx.reply(
+        `Hafta ${award._id} g‘olibi/top-10 e’lon qilinishidan oldin shubhali referral tekshiruvini kutmoqda.`,
+        Markup.inlineKeyboard([[Markup.button.callback('🛡 Tekshiruv navbati', 'admin_referral_reviews')]]),
+      );
+      return;
+    }
     const user = await User.findById(award.userId).lean();
     const text = `Hafta: ${award._id}\nG‘olib: ${user?.firstName || 'Foydalanuvchi'} (ID ${award.userId})\nBall: ${award.points}\nSovrin: ${Number(award.amount).toLocaleString('uz-UZ')} so‘m\nHolat: ${award.status === 'paid' ? 'To‘langan' : 'To‘lash kutilmoqda'}`;
     const keyboard = award.status === 'pending'
@@ -1973,7 +2674,7 @@ function createApplication(options = {}) {
     await showSettings(ctx);
   });
 
-  bot.action(/^setting_edit_(weeklyPrize|refReward|refBonus|channelReward|instagramReward|invite3Reward|dailyBonusBase|dailyStreakBonus)$/, adminOnly, async (ctx) => {
+  bot.action(/^setting_edit_(weeklyPrize|refReward|refBonus|channelReward|instagramReward|invite3Reward|dailyBonusBase|dailyStreakBonus|dailyReferralThreshold|promoRedemptionLimit|levelRewardCoins)$/, adminOnly, async (ctx) => {
     await ctx.answerCbQuery();
     const key = ctx.match[1];
     const title = {
@@ -1985,6 +2686,9 @@ function createApplication(options = {}) {
       invite3Reward: 'Do‘st taklif qilish topshirig‘i balli',
       dailyBonusBase: 'Kunlik asosiy bonus balli',
       dailyStreakBonus: 'Ketma-ket kunlik qo‘shimcha ball',
+      dailyReferralThreshold: 'Kunlik shubhali referral chegarasi',
+      promoRedemptionLimit: 'Har bir promo-kod ishlatish limiti',
+      levelRewardCoins: 'Har bir yangi daraja uchun bir martalik coin mukofoti',
     }[key];
     await promptAdminInput(ctx, {
       kind: 'setting',
@@ -2050,6 +2754,7 @@ function createApplication(options = {}) {
       claim.reviewedBy = String(ctx.from.id);
       claim.reviewedAt = new Date();
       await claim.save();
+      await awardReferral(await User.findById(claim.userId).lean());
       await bot.telegram.sendMessage(claim.userId, `“${task.title}” topshirig‘i tasdiqlandi. +${task.reward} coin.`);
       await ctx.reply('Topshiriq tasdiqlandi va ball berildi.');
     } else {
@@ -2065,7 +2770,7 @@ function createApplication(options = {}) {
   bot.action(/^pay_week_(\d{4}-\d{2}-\d{2})$/, adminOnly, async (ctx) => {
     await ctx.answerCbQuery();
     const award = await WeeklyAward.findOneAndUpdate(
-      { _id: ctx.match[1], status: 'pending' },
+      { _id: ctx.match[1], status: 'pending', reviewPending: false },
       { $set: { status: 'paid', paidAt: new Date(), paidBy: String(ctx.from.id) } },
       { new: true },
     );
@@ -2080,13 +2785,13 @@ function createApplication(options = {}) {
   app.get('/health', (req, res) => res.json({ ok: true }));
 
   app.get('/api/me', authenticate, asyncRoute(async (req, res) => {
-    const user = await ensureUser(req.telegram, req.startParam);
+    const user = await ensureUser(req.telegram, req.startParam, req);
     const data = await getMe(user);
     res.json(data);
   }));
 
   app.get('/api/captcha', authenticate, asyncRoute(async (req, res) => {
-    const user = await ensureUser(req.telegram, req.startParam);
+    const user = await ensureUser(req.telegram, req.startParam, req);
     if (user.verified) {
       res.json({ verified: true });
       return;
@@ -2095,7 +2800,7 @@ function createApplication(options = {}) {
   }));
 
   app.post('/api/captcha/verify', authenticate, asyncRoute(async (req, res) => {
-    const user = await ensureUser(req.telegram, req.startParam);
+    const user = await ensureUser(req.telegram, req.startParam, req);
     const { id, answers } = req.body || {};
     if (typeof id !== 'string' || !Array.isArray(answers) || answers.length !== 3 ||
         answers.some((answer) => typeof answer !== 'string' || answer.length > 10)) {
@@ -2192,10 +2897,8 @@ function createApplication(options = {}) {
         { $set: { status: 'approved', reviewedAt: new Date() }, $setOnInsert: { userId, taskId: task._id } },
         { upsert: true },
       );
-      if (task.requiredForReferral) {
-        const user = await User.findById(userId).lean();
-        await awardReferral(user);
-      }
+      const user = await User.findById(userId).lean();
+      await awardReferral(user);
       res.json({ ok: true, status: 'approved', reward: task.requiredForReferral ? 0 : task.reward });
       return;
     }
@@ -2209,6 +2912,7 @@ function createApplication(options = {}) {
         { $set: { status: 'approved', reviewedAt: new Date() }, $setOnInsert: { userId, taskId: task._id } },
         { upsert: true },
       );
+      await awardReferral(await User.findById(userId).lean());
       res.json({ ok: true, status: 'approved', reward: task.reward });
       return;
     }
@@ -2255,78 +2959,261 @@ function createApplication(options = {}) {
     });
   });
 
-  async function closePreviousWeek() {
-    const current = getWeekRange();
+  async function getWeekTopTen(start, end) {
+    return Ledger.aggregate([
+      { $match: { points: { $ne: 0 }, createdAt: { $gte: start, $lt: end } } },
+      { $group: { _id: '$userId', points: { $sum: '$points' } } },
+      { $match: { points: { $gt: 0 } } },
+      {
+        $lookup: {
+          from: User.collection.name,
+          let: { candidateId: '$_id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ['$_id', '$$candidateId'] },
+                verified: true,
+                banned: { $ne: true },
+                referralReviewStatus: { $ne: 'rejected' },
+              },
+            },
+            { $project: { firstName: 1, username: 1, referralReviewStatus: 1 } },
+          ],
+          as: 'user',
+        },
+      },
+      { $unwind: '$user' },
+      { $sort: { points: -1, _id: 1 } },
+      { $limit: 10 },
+      {
+        $project: {
+          _id: 0,
+          userId: '$_id',
+          name: '$user.firstName',
+          username: '$user.username',
+          points: 1,
+          referralReviewStatus: '$user.referralReviewStatus',
+        },
+      },
+    ]);
+  }
+
+  async function publishWeeklyAward(weekId) {
+    const award = await WeeklyAward.findOneAndUpdate(
+      {
+        _id: weekId,
+        reviewPending: { $ne: true },
+        announcementStatus: { $in: ['pending', null] },
+      },
+      { $set: { announcementStatus: 'sending' } },
+      { new: true },
+    ).lean();
+    if (!award) return WeeklyAward.findById(weekId).lean();
+
+    const topTenText = award.topTen.length
+      ? award.topTen.map((user, index) =>
+        `${index + 1}. ${user.name || 'Foydalanuvchi'}${user.username ? ` (@${user.username})` : ''} — ${user.points} ball`,
+      ).join('\n')
+      : 'Bu hafta reytingga mos ball to‘plagan ishtirokchi bo‘lmadi.';
+    const winnerText = award.userId
+      ? `🏆 Haftalik g‘olib: ${award.topTen[0]?.name || 'Foydalanuvchi'}\n` +
+        `Ball: ${award.points}\nSovrin: ${Number(award.amount).toLocaleString('uz-UZ')} so‘m.\n` +
+        `${award.status === 'paid' ? 'Sovrin admin tomonidan to‘langan.' : 'Sovrin tashqarida admin tomonidan yuboriladi.'}`
+      : '🏆 Bu hafta haftalik sovrin g‘olibi aniqlanmadi.';
+    const message = `📊 Hafta yakunlandi!\n\n${winnerText}\n\nHaftalik top-10:\n${topTenText}`;
+    try {
+      const { sent, failed } = await broadcastToUsers(message, Markup.inlineKeyboard([[
+        { ...Markup.button.webApp('📊 Haftalik reyting', config.appUrl), style: 'primary' },
+      ]]));
+      await WeeklyAward.updateOne(
+        { _id: weekId, announcementStatus: 'sending' },
+        { $set: { announcementStatus: 'sent', announcedAt: new Date() } },
+      );
+      await notifyAdmins(
+        `${message}\n\nXabar yetkazildi: ${sent}\nYetkazilmadi: ${failed}`,
+        award.userId && award.status === 'pending' ? Markup.inlineKeyboard([[
+          Markup.button.callback('✅ Pul yuborildi', `pay_week_${award._id}`),
+        ]]) : {},
+      );
+      if (award.userId) {
+        try {
+          await bot.telegram.sendMessage(
+            award.userId,
+            `🏆 Tabriklaymiz! O‘tgan hafta ${award.points} ball bilan g‘olib bo‘ldingiz. ` +
+            `Sovrin: ${Number(award.amount).toLocaleString('uz-UZ')} so‘m. ` +
+            `${award.status === 'paid' ? 'To‘lov amalga oshirilgan.' : 'To‘lov admin tomonidan yuborilgach xabar olasiz.'}`,
+          );
+        } catch (error) {
+          console.error(`Could not notify weekly winner ${award.userId}:`, error.message);
+        }
+      }
+    } catch (error) {
+      await WeeklyAward.updateOne(
+        { _id: weekId, announcementStatus: 'sending' },
+        { $set: { announcementStatus: 'pending' } },
+      );
+      throw error;
+    }
+    return WeeklyAward.findById(weekId).lean();
+  }
+
+  async function resolveWeeklyAward(weekId) {
+    const award = await WeeklyAward.findById(weekId);
+    if (!award || award.announcementStatus === 'sent') return award;
+    const start = award.weekStart || new Date(`${weekId}T00:00:00+05:00`);
+    const end = award.weekEnd || new Date(start.getTime() + 7 * DAY_MS);
+    const topTen = await getWeekTopTen(start, end);
+    const reviewPending = award.status !== 'paid' &&
+      topTen.some((user) => user.referralReviewStatus === 'pending');
+    await WeeklyAward.updateOne(
+      { _id: weekId },
+      {
+        $set: {
+          weekStart: start,
+          weekEnd: end,
+          topTen,
+          userId: award.status === 'paid' ? award.userId : topTen[0]?.userId || '',
+          points: award.status === 'paid' ? award.points : topTen[0]?.points || 0,
+          status: award.status === 'paid' ? 'paid' : topTen.length ? 'pending' : 'empty',
+          reviewPending,
+        },
+      },
+    );
+    if (reviewPending) {
+      const flagged = topTen.filter((user) => user.referralReviewStatus === 'pending');
+      await notifyAdmins(
+        `🛡 Haftalik g‘olib/top-10 e’lonidan oldin referral tekshiruvi kerak.\n` +
+        flagged.map((user) => `${user.name || 'Foydalanuvchi'} (ID ${user.userId}) — ${user.points} ball`).join('\n'),
+        Markup.inlineKeyboard(flagged.map((user) => [
+          Markup.button.callback(`👤 ${String(user.name || user.userId).slice(0, 20)}`, `user_show_${user.userId}`),
+          Markup.button.callback('✅', `referral_review_approve_${user.userId}`),
+          Markup.button.callback('🚫', `referral_review_reject_${user.userId}`),
+        ])),
+      );
+      return WeeklyAward.findById(weekId).lean();
+    }
+    return publishWeeklyAward(weekId);
+  }
+
+  async function resolvePendingWeeklyAwards() {
+    const awards = await WeeklyAward.find({ reviewPending: true }).select('_id').lean();
+    for (const award of awards) await resolveWeeklyAward(award._id);
+  }
+
+  async function closePreviousWeek(referenceDate = new Date()) {
+    const current = getWeekRange(referenceDate);
     const start = new Date(current.start.getTime() - 7 * DAY_MS);
     const end = current.start;
     const weekId = getTashkentDate(new Date(start.getTime() + 5 * 60 * 60 * 1000));
-    const existing = await WeeklyAward.findById(weekId);
-    if (existing) return existing;
-
-    const [winner] = await Ledger.aggregate([
-      { $match: { points: { $gt: 0 }, createdAt: { $gte: start, $lt: end } } },
-      { $group: { _id: '$userId', points: { $sum: '$points' } } },
-      { $sort: { points: -1, _id: 1 } },
-      { $limit: 1 },
-    ]);
-    const award = await WeeklyAward.findOneAndUpdate(
+    await WeeklyAward.findOneAndUpdate(
       { _id: weekId },
       { $setOnInsert: {
-        userId: winner?._id || '',
-        points: winner?.points || 0,
+        _id: weekId,
+        weekStart: start,
+        weekEnd: end,
         amount: config.weeklyPrize,
-        status: winner ? 'pending' : 'empty',
+        status: 'empty',
+        announcementStatus: 'pending',
       } },
-      { upsert: true, new: true },
+      { upsert: true },
     );
-    if (award.userId) {
-      const user = await User.findById(award.userId).lean();
-      const message = `🏆 Haftalik g‘olib: ${user?.firstName || 'Foydalanuvchi'} (ID ${award.userId})\nBall: ${award.points}\nSovrin: ${Number(award.amount).toLocaleString('uz-UZ')} so‘m\nPulni tashqarida yuboring, keyin /admin panelida “Pul yuborildi”ni bosing.`;
-      await notifyAdmins(message, Markup.inlineKeyboard([[
-        Markup.button.callback('✅ Pul yuborildi', `pay_week_${award._id}`),
-      ]]));
-      try {
-        await bot.telegram.sendMessage(award.userId, `Tabriklaymiz! O‘tgan haftada ${award.points} ball bilan g‘olib bo‘ldingiz. Sovrin: ${Number(award.amount).toLocaleString('uz-UZ')} so‘m. To‘lov admin tomonidan yuborilgach xabar olasiz.`);
-      } catch (error) {
-        console.error(`Could not notify weekly winner ${award.userId}:`, error.message);
-      }
-    } else {
-      await notifyAdmins(`Hafta ${weekId} yakunlandi, lekin ball to‘plagan foydalanuvchi bo‘lmadi.`);
-    }
-    return award;
+    return resolveWeeklyAward(weekId);
   }
 
-  return { app, bot, config, ensureSeedTasks, closePreviousWeek };
+  async function sendDailyReminders(date = new Date()) {
+    const today = getTashkentDate(date);
+    let sent = 0;
+    let failed = 0;
+    const cursor = User.find({
+      verified: true,
+      banned: { $ne: true },
+      botStartedAt: { $ne: null },
+      lastDailyDate: { $ne: today },
+      lastDailyReminderDate: { $ne: today },
+    }).select('_id').lean().cursor();
+    for await (const user of cursor) {
+      const reserved = await User.updateOne(
+        {
+          _id: user._id,
+          lastDailyDate: { $ne: today },
+          lastDailyReminderDate: { $ne: today },
+        },
+        { $set: { lastDailyReminderDate: today } },
+      );
+      if (reserved.modifiedCount !== 1) continue;
+      try {
+        await bot.telegram.sendMessage(
+          user._id,
+          '🔥 Bugungi kunlik bonusni hali olmadingiz. Bonusni oling va ketma-ket kunlik seriyangizni saqlang!',
+          Markup.inlineKeyboard([[
+            { ...Markup.button.webApp('🎁 Kunlik bonusni olish', config.appUrl), style: 'success' },
+          ]]),
+        );
+        sent += 1;
+      } catch (error) {
+        failed += 1;
+        await User.updateOne(
+          { _id: user._id, lastDailyReminderDate: today },
+          { $set: { lastDailyReminderDate: '' } },
+        );
+        console.error(`Could not send daily reminder to ${user._id}:`, error.message);
+      }
+    }
+    return { sent, failed };
+  }
+
+  return {
+    app,
+    bot,
+    config,
+    ensureSeedTasks,
+    closePreviousWeek,
+    sendDailyReminders,
+  };
 }
 
 async function start() {
-  const { app, bot, config, ensureSeedTasks, closePreviousWeek } = createApplication();
+  const { app, bot, config, ensureSeedTasks, closePreviousWeek, sendDailyReminders } = createApplication();
   if (!process.env.MONGODB_URI) throw new Error('MONGODB_URI is required.');
   await mongoose.connect(process.env.MONGODB_URI);
-  await Promise.all([User, Ledger, Task, Claim, Captcha, WeeklyAward, Setting, ReferralGift, Donation].map((model) => model.init()));
+  await Promise.all([
+    User, Ledger, Task, Claim, Captcha, WeeklyAward, Setting, ReferralGift, Donation,
+    AccountSignal, Promo, PromoRedemption,
+  ].map((model) => model.init()));
   await ensureSeedTasks();
   await closePreviousWeek();
 
   const scheduleWeeklyAward = () => {
     const now = new Date();
-    const localNow = new Date(now.getTime() + 5 * 60 * 60 * 1000);
-    const daysUntilMonday = (8 - localNow.getUTCDay()) % 7 || 7;
-    const nextMonday = new Date(Date.UTC(
-      localNow.getUTCFullYear(),
-      localNow.getUTCMonth(),
-      localNow.getUTCDate() + daysUntilMonday,
-    ) - 5 * 60 * 60 * 1000);
+    const sundayAnnouncement = getNextSundayAnnouncement(now);
     const timer = setTimeout(async () => {
       try {
-        await closePreviousWeek();
+        await closePreviousWeek(new Date(Date.now() + 60 * 1000));
       } catch (error) {
         console.error('Weekly award calculation failed:', error);
       }
       scheduleWeeklyAward();
-    }, Math.max(1000, nextMonday.getTime() - now.getTime()));
+    }, Math.max(1000, sundayAnnouncement.getTime() - now.getTime()));
     timer.unref();
   };
   scheduleWeeklyAward();
+
+  const scheduleDailyReminder = () => {
+    const now = new Date();
+    const reminderAt = getNextDailyReminder(now);
+    const timer = setTimeout(async () => {
+      try {
+        const result = await sendDailyReminders();
+        console.log(`Daily reminders sent: ${result.sent}; failed: ${result.failed}.`);
+      } catch (error) {
+        console.error('Daily reminder delivery failed:', error);
+      } finally {
+        scheduleDailyReminder();
+      }
+    }, Math.max(1000, reminderAt.getTime() - now.getTime()));
+    timer.unref();
+  };
+  scheduleDailyReminder();
 
   const port = Number(process.env.PORT || 3000);
   const server = app.listen(port, () => console.log(`Mini App server listening on port ${port}`));
@@ -2378,6 +3265,11 @@ if (require.main === module) {
 module.exports = {
   createApplication,
   getTashkentDate,
+  getTashkentDayRange,
+  getNextSundayAnnouncement,
+  getNextDailyReminder,
+  normalizePromoCode,
+  isReferralEligible,
   getWeekRange,
   getTelegramRetryDelay,
   getReferralGiftMilestones,

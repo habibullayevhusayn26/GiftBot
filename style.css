@@ -193,6 +193,9 @@ button { font-family: inherit; border: 0; background: none; color: inherit; curs
 .balance span { font-size: 52px; font-weight: 800; letter-spacing: -1.5px; font-variant-numeric: tabular-nums; }
 .balance small { font-size: 18px; font-weight: 600; color: var(--label2); }
 .level-row { display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; color: var(--label2); margin-bottom: 8px; }
+.level-title { display: inline-flex; align-items: center; gap: 5px; }
+.level-title .emoji-icon { width: 18px; height: 18px; font-size: 18px; }
+#levelBadge[hidden] { display: none; }
 .progress { height: 9px; border-radius: 999px; background: rgba(148,163,184,.12); overflow: hidden; }
 .progress i { display: block; height: 100%; width: 0; border-radius: inherit; background: linear-gradient(90deg, var(--blue), var(--purple)); transition: width 1s cubic-bezier(.2, .8, .2, 1); }
 .stats { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--sep); text-align: center; }
