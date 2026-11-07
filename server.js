@@ -111,6 +111,46 @@ const BUTTON_EMOJI_IDS = new Map([
   ['🧠', '5974149949384825933'],
   ['📝', '5974540413451640018'],
 ]);
+// Premium ID'si yo'q emojilar uchun eng yaqin premium emoji
+const EMOJI_ALIASES = new Map([['🎉', '🎈'], ['🎊', '🎈'], ['📣', '📢'], ['📷', '🖼'], ['🔄', '↩']]);
+// Xabar qatori mazmuniga qarab premium emoji tanlash (tartib muhim: birinchi mos kelgani olinadi)
+const LINE_EMOJI_RULES = [
+  [/xush kelibsiz/, '👋'],
+  [/faqat adminlar/, '🔒'],
+  [/bekor qilindi|bekor qilish/, '🚫'],
+  [/ochirildi/, '🗑'],
+  [/rad etildi/, '❌'],
+  [/notogri|xato|topilmadi|yetkazilmadi|bolmadi|eskirgan/, '❌'],
+  [/format:|masalan|kiriting|kerak/, 'ℹ'],
+  [/rahmat/, '💟'],
+  [/tabrik/, '🏆'],
+  [/saqlandi|qoshildi|tasdiqlandi|yangilandi|belgilandi|muvaffaqiyatli|yakunlandi|yuborildi|tanlandi|korib chiqildi|tekshiruvdan/, '✅'],
+  [/yuborilmoqda|kuting|kutilayotgan|navbat|kutilmoqda/, '⏳'],
+  [/noaniq/, '❔'],
+  [/foydalanuvchi|username|telegram id/, '👤'],
+  [/obunachilar|dost|referral|taklif/, '👥'],
+  [/gift/, '🎁'],
+  [/kanal|obuna/, '📢'],
+  [/instagram|havola|url/, '🔗'],
+  [/umumiy reyting/, '📈'],
+  [/reyting|statistika/, '📊'],
+  [/golib/, '🏆'],
+  [/mukofot|ball|coin|mablag|sovrin|miqdor|stars|pul|som\b/, '💰'],
+  [/isbot/, '📄'],
+  [/topshiriq/, '📋'],
+  [/ozgartir/, '✏'],
+  [/sozlama|mongodb|qiymat/, '⚙'],
+  [/hafta/, '🗓'],
+  [/urinish|holat/, '📌'],
+  [/xabar/, '📤'],
+];
+function pickLineEmoji(lineText) {
+  const plain = lineText.toLowerCase().replace(/[‘’'ʻ`]/g, '');
+  for (const [pattern, emoji] of LINE_EMOJI_RULES) {
+    if (pattern.test(plain) && BUTTON_EMOJI_IDS.has(emoji)) return emoji;
+  }
+  return '💬';
+}
 const BUTTON_STYLE_EMOJI_IDS = {
   primary: '5974236196623098000',
   success: '5971815857997750999',
@@ -186,14 +226,17 @@ function toTelegramHtml(value) {
     const firstGrapheme = BUTTON_GRAPHEME_SEGMENTER
       .segment(leadingText)[Symbol.iterator]().next().value?.segment;
     const normalizedEmoji = firstGrapheme?.replace(/\uFE0F/g, '');
-    const hasLeadingPremiumEmoji = Boolean(normalizedEmoji && BUTTON_EMOJI_IDS.has(normalizedEmoji));
+    const leadingKey = normalizedEmoji && (EMOJI_ALIASES.get(normalizedEmoji) || normalizedEmoji);
+    const hasLeadingPremiumEmoji = Boolean(leadingKey && BUTTON_EMOJI_IDS.has(leadingKey));
     const lineText = hasLeadingPremiumEmoji ? leadingText : line;
+    const prefixEmoji = hasLeadingPremiumEmoji ? '' : pickLineEmoji(lineText);
     const prefix = hasLeadingPremiumEmoji
       ? ''
-      : '<tg-emoji emoji-id="5972237795584909109">💬</tg-emoji> ';
+      : `<tg-emoji emoji-id="${BUTTON_EMOJI_IDS.get(prefixEmoji)}">${prefixEmoji}</tg-emoji> `;
     const formattedLine = [...BUTTON_GRAPHEME_SEGMENTER.segment(lineText)]
       .map(({ segment }) => {
-        const emoji = segment.replace(/\uFE0F/g, '');
+        const rawEmoji = segment.replace(/\uFE0F/g, '');
+        const emoji = EMOJI_ALIASES.get(rawEmoji) || rawEmoji;
         const emojiId = BUTTON_EMOJI_IDS.get(emoji);
         if (emojiId) return `<tg-emoji emoji-id="${emojiId}">${emoji}</tg-emoji>`;
         return segment.replace(/[&<>]/g, (character) => ({
