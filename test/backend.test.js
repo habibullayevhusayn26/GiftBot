@@ -625,7 +625,14 @@ test('API health is public but game data rejects unsigned requests', async (t) =
 
   const miniApp = await fetch(`${baseUrl}/`);
   assert.equal(miniApp.status, 200);
-  assert.match(await miniApp.text(), /<title>Viral<\/title>/);
+  const miniAppHtml = await miniApp.text();
+  assert.match(miniAppHtml, /<title>Viral<\/title>/);
+  assert.match(miniAppHtml, /id="page-rules"/);
+  assert.match(miniAppHtml, /id="rulesContent"/);
+  const rules = await fetch(`${baseUrl}/qoidalar.txt`);
+  assert.equal(rules.status, 200);
+  assert.match(rules.headers.get('content-type'), /text\/plain/);
+  assert.equal(await rules.text(), fs.readFileSync(path.join(__dirname, '..', 'QOIDALAR.txt'), 'utf8'));
   const background = await fetch(`${baseUrl}/assets/background.png`);
   assert.equal(background.status, 200);
   const badge = await fetch(`${baseUrl}/icons/level-badge.json`);

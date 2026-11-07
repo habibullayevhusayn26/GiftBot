@@ -2944,6 +2944,10 @@ function createApplication(options = {}) {
   app.get('/style.css', (req, res, next) => {
     res.sendFile(path.join(__dirname, 'style.css'), (error) => error && next(error));
   });
+  app.get('/qoidalar.txt', (req, res, next) => {
+    res.type('text/plain; charset=utf-8');
+    res.sendFile(path.join(__dirname, 'QOIDALAR.txt'), (error) => error && next(error));
+  });
   app.get('/app.js', (req, res, next) => {
     res.sendFile(path.join(__dirname, 'app.js'), (error) => error && next(error));
   });

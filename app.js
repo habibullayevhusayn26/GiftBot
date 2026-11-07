@@ -468,12 +468,14 @@ function renderProfile() {
 }
 
 /* ---------- Navigatsiya ---------- */
-const TABS = ['home', 'friends', 'top', 'me'];
+const TABS = ['home', 'friends', 'top', 'me', 'rules'];
 function go(tab, silent) {
   const idx = TABS.indexOf(tab);
+  if (idx < 0) return;
   $$('.page').forEach((p) => p.classList.toggle('active', p.id === 'page-' + tab));
-  $$('#tabbar button').forEach((b) => b.classList.toggle('on', b.dataset.t === tab));
-  $('.tab-thumb').style.transform = `translateX(${idx * 100}%)`;
+  const tabIndex = tab === 'rules' ? TABS.indexOf('me') : idx;
+  $$('#tabbar button').forEach((b) => b.classList.toggle('on', b.dataset.t === (tab === 'rules' ? 'me' : tab)));
+  $('.tab-thumb').style.transform = `translateX(${tabIndex * 100}%)`;
   window.scrollTo({ top: 0 });
   if (!silent) haptic('select');
   if (tab === 'friends') renderFriends();
@@ -616,7 +618,30 @@ $('#shareBtn').addEventListener('click', () => {
 });
 
 $('#hapticToggle').addEventListener('change', (e) => { hapticOn = e.target.checked; if (hapticOn) haptic('medium'); });
-$('#rulesBtn').addEventListener('click', () => { haptic('light'); toast(`Har yakshanba eng ko'p ball yig'gan 1 kishiga ${fmt(CONFIG.WEEKLY_PRIZE)} so'm beriladi`); });
+let rulesLoaded = false;
+async function openRulesPage() {
+  go('rules');
+  if (rulesLoaded) return;
+  const content = $('#rulesContent');
+  const retry = $('#rulesRetry');
+  content.textContent = 'Qoidalar yuklanmoqda…';
+  retry.hidden = true;
+  try {
+    const response = await fetch('/qoidalar.txt', { cache: 'no-cache' });
+    if (!response.ok) throw new Error(`Qoidalarni yuklab bo‘lmadi (${response.status}).`);
+    const rules = await response.text();
+    if (!rules.trim()) throw new Error('Qoidalar fayli bo‘sh.');
+    content.textContent = rules;
+    rulesLoaded = true;
+  } catch (error) {
+    console.error('Could not load rules:', error);
+    content.textContent = error.message || 'Qoidalarni yuklashda xatolik yuz berdi.';
+    retry.hidden = false;
+  }
+}
+$('#rulesBtn').addEventListener('click', () => { haptic('light'); void openRulesPage(); });
+$('#rulesBack').addEventListener('click', () => go('me'));
+$('#rulesRetry').addEventListener('click', () => { void openRulesPage(); });
 $('#supportBtn').addEventListener('click', () => {
   haptic('light');
   if (tg?.openTelegramLink) tg.openTelegramLink(`https://t.me/${CONFIG.BOT_USERNAME}`); else toast('Yordam: tez orada');

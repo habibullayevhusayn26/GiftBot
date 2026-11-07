@@ -571,3 +571,30 @@ body {
 }
 .cap-grid .emoji-icon { width: 64%; height: 64%; font-size: 36px; }
 .cap-target .emoji-icon { width: 32px; height: 32px; margin: 0 2px; font-size: 30px; }
+
+#page-rules .rules-title { position: relative; padding-top: 54px; }
+#page-rules .rules-back {
+  position: absolute;
+  top: 8px;
+  left: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  color: #c69aff;
+  background: rgba(169,107,255,.1);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+}
+#page-rules .rules-card { padding: 18px; }
+#page-rules #rulesContent {
+  margin: 0;
+  color: var(--label2);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.75;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+#page-rules .rules-retry { width: 100%; margin-top: 16px; }
+#page-rules .rules-retry[hidden] { display: none; }
