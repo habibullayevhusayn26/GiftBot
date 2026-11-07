@@ -156,6 +156,8 @@ const tgUser = tg?.initDataUnsafe?.user || { id: 777001, first_name: 'Azizbek', 
 let liveInviteLink = '';
 let liveRank = null;
 let liveLeaderboard = null;
+let referralGift = null;
+let referralGiftProgress = { milestone: 10, progress: 0, remaining: 10, completedMilestones: 0, completedMilestone: false };
 
 /* ---------- Haptika ---------- */
 let hapticOn = true;
@@ -188,6 +190,8 @@ async function refreshLiveData() {
     color: task.type === 'manual' ? '#ff375f' : task.type === 'referrals' ? '#30d158' : '#0a84ff',
   }));
   demo.friends = data.friends;
+  referralGift = data.referralGift || null;
+  referralGiftProgress = data.referralGiftProgress || referralGiftProgress;
   liveInviteLink = data.inviteLink;
   liveRank = data.user.rank;
   CONFIG.WEEKLY_PRIZE = data.prize;
@@ -294,6 +298,27 @@ function renderFriends() {
 
   const n = LIVE_MODE ? (demo.user.referralCount || 0) : demo.friends.length;
   $('#invCount').textContent = n;
+  const progress = LIVE_MODE
+    ? referralGiftProgress
+    : {
+      milestone: 10,
+      progress: n > 0 && n % 10 === 0 ? 10 : n % 10,
+      remaining: n > 0 && n % 10 === 0 ? 10 : 10 - (n % 10),
+      completedMilestones: Math.floor(n / 10),
+      completedMilestone: n > 0 && n % 10 === 0,
+    };
+  const ratio = Math.min(100, (progress.progress / progress.milestone) * 100);
+  const progressBar = $('#referralGiftBar');
+  const progressTrack = progressBar.parentElement;
+  progressBar.style.width = `${ratio}%`;
+  progressTrack.setAttribute('aria-valuenow', String(progress.progress));
+  $('#referralGiftCount').textContent = `${progress.progress} / ${progress.milestone} ta tasdiqlangan do‘st`;
+  $('#referralGiftRemaining').textContent = progress.completedMilestone
+    ? 'Bosqich bajarildi'
+    : `Yana ${progress.remaining} ta qoldi`;
+  $('#referralGiftDescription').textContent = referralGift
+    ? `${referralGift.emoji} Gift · ${fmt(referralGift.stars)} Stars. Faqat tasdiqlangan takliflar hisoblanadi.`
+    : 'Faqat tasdiqlangan takliflar hisoblanadi. Admin hali yuboriladigan giftni tanlamagan.';
   $('#friendList').innerHTML = n
     ? demo.friends.map((f, i) => `
       <div class="item">

@@ -241,6 +241,15 @@ button { font-family: inherit; border: 0; background: none; color: inherit; curs
 .invite p { margin: 0 0 16px; font-size: 15px; line-height: 1.5; color: var(--label2); }
 .invite p b { color: var(--label); }
 .link-box { background: rgba(148,163,184,.08); border: 1px solid var(--glass-border); border-radius: 14px; padding: 13px 14px; font-size: 14px; font-weight: 600; color: var(--blue); word-break: break-all; text-align: left; }
+.referral-milestone { margin-top: 14px; }
+.milestone-heading { display: flex; align-items: center; gap: 12px; }
+.milestone-icon { display: grid; width: 44px; height: 44px; flex: none; place-items: center; border-radius: 14px; color: #ffd166; background: rgba(255,209,102,.12); }
+.milestone-icon .emoji-icon { width: 25px; height: 25px; font-size: 24px; }
+.milestone-heading h3 { margin: 0; font-size: 17px; }
+.milestone-heading p { margin: 4px 0 0; color: var(--label2); font-size: 12px; line-height: 1.4; }
+.milestone-progress-copy { display: flex; justify-content: space-between; gap: 8px; margin-top: 17px; color: var(--label2); font-size: 12px; font-weight: 600; }
+.milestone-progress { height: 8px; margin-top: 8px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,.09); }
+.milestone-progress i { display: block; width: 0; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #f5a623, #ffd166); transition: width .45s ease; }
 
 /* Daraja progress */
 .tier .progress { height: 6px; margin-top: 7px; }

@@ -10,6 +10,7 @@ const {
   getWeekRange,
   getTelegramRetryDelay,
   getReferralGiftMilestones,
+  getReferralGiftProgress,
   validateDonationAmount,
   createDonationInvoiceLink,
   isValidStarDonationPayment,
@@ -90,6 +91,38 @@ test('referral gifts are queued at each ten verified referrals', () => {
   assert.deepEqual(getReferralGiftMilestones(10), [10]);
   assert.deepEqual(getReferralGiftMilestones(25), [10, 20]);
   assert.deepEqual(getReferralGiftMilestones(Number.NaN), []);
+});
+
+test('referral gift progress advances to every ten verified referrals', () => {
+  assert.deepEqual(getReferralGiftProgress(0), {
+    milestone: 10,
+    progress: 0,
+    remaining: 10,
+    completedMilestones: 0,
+    completedMilestone: false,
+  });
+  assert.deepEqual(getReferralGiftProgress(9), {
+    milestone: 10,
+    progress: 9,
+    remaining: 1,
+    completedMilestones: 0,
+    completedMilestone: false,
+  });
+  assert.deepEqual(getReferralGiftProgress(10), {
+    milestone: 10,
+    progress: 10,
+    remaining: 10,
+    completedMilestones: 1,
+    completedMilestone: true,
+  });
+  assert.deepEqual(getReferralGiftProgress(21), {
+    milestone: 10,
+    progress: 1,
+    remaining: 9,
+    completedMilestones: 2,
+    completedMilestone: false,
+  });
+  assert.equal(getReferralGiftProgress(-5).progress, 0);
 });
 
 test('leaderboard includes every verified user and gives users without points a zero score', () => {

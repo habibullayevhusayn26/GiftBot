@@ -183,6 +183,19 @@ function getReferralGiftMilestones(referralCount) {
   return milestones;
 }
 
+function getReferralGiftProgress(referralCount) {
+  const count = Number.isSafeInteger(referralCount) && referralCount > 0 ? referralCount : 0;
+  const progress = count % REFERRAL_GIFT_MILESTONE;
+  const completedMilestone = count > 0 && progress === 0;
+  return {
+    milestone: REFERRAL_GIFT_MILESTONE,
+    progress: completedMilestone ? REFERRAL_GIFT_MILESTONE : progress,
+    remaining: completedMilestone ? REFERRAL_GIFT_MILESTONE : REFERRAL_GIFT_MILESTONE - progress,
+    completedMilestones: Math.floor(count / REFERRAL_GIFT_MILESTONE),
+    completedMilestone,
+  };
+}
+
 function buildLeaderboardPipeline(ledgerCollection, range = null) {
   const ledgerMatch = {
     $expr: { $eq: ['$userId', '$$leaderboardUserId'] },
@@ -821,6 +834,10 @@ function createApplication(options = {}) {
       botUsername: config.botUsername,
       prize: config.weeklyPrize,
       rewards: { refReward: config.refReward, refBonus: config.refBonus },
+      referralGift: config.referralGift
+        ? { stars: config.referralGift.stars, emoji: config.referralGift.emoji || '🎁' }
+        : null,
+      referralGiftProgress: getReferralGiftProgress(referralCount),
     };
   }
 
@@ -2152,6 +2169,7 @@ module.exports = {
   getWeekRange,
   getTelegramRetryDelay,
   getReferralGiftMilestones,
+  getReferralGiftProgress,
   validateDonationAmount,
   createDonationInvoiceLink,
   isValidStarDonationPayment,
