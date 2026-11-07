@@ -1,0 +1,122 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
+const fs = require('node:fs');
+const path = require('node:path');
+const {
+  createApplication,
+  getTashkentDate,
+  getWeekRange,
+  verifyTelegramInitData,
+} = require('../server');
+
+function signedInitData(botToken, fields) {
+  const params = new URLSearchParams(fields);
+  const checkString = [...params.entries()]
+    .map(([key, value]) => `${key}=${value}`)
+    .sort()
+    .join('\n');
+  const secret = crypto.createHmac('sha256', 'WebAppData').update(botToken).digest();
+  params.set('hash', crypto.createHmac('sha256', secret).update(checkString).digest('hex'));
+  return params.toString();
+}
+
+test('Telegram initData signature validates and returns the signed user', () => {
+  const botToken = 'test-token';
+  const now = Date.parse('2026-11-07T12:00:00Z');
+  const initData = signedInitData(botToken, {
+    auth_date: String(now / 1000),
+    query_id: 'query',
+    start_param: 'ref_123',
+    user: JSON.stringify({ id: 456, first_name: 'Ali' }),
+  });
+
+  assert.deepEqual(verifyTelegramInitData(initData, botToken, now), {
+    user: { id: 456, first_name: 'Ali' },
+    startParam: 'ref_123',
+  });
+  assert.equal(verifyTelegramInitData(initData, 'wrong-token', now), null);
+});
+
+test('Telegram initData rejects modified and expired payloads', () => {
+  const botToken = 'test-token';
+  const now = Date.parse('2026-11-07T12:00:00Z');
+  const initData = signedInitData(botToken, {
+    auth_date: String(now / 1000 - 86401),
+    user: JSON.stringify({ id: 456, first_name: 'Ali' }),
+  });
+  assert.equal(verifyTelegramInitData(initData, botToken, now), null);
+
+  const fresh = signedInitData(botToken, {
+    auth_date: String(now / 1000),
+    user: JSON.stringify({ id: 456, first_name: 'Ali' }),
+  }).replace('Ali', 'Vali');
+  assert.equal(verifyTelegramInitData(fresh, botToken, now), null);
+});
+
+test('weekly boundaries follow the Tashkent Monday-to-Monday week', () => {
+  const saturday = new Date('2026-11-07T17:59:59Z');
+  const range = getWeekRange(saturday);
+
+  assert.equal(range.start.toISOString(), '2026-11-01T19:00:00.000Z');
+  assert.equal(range.end.toISOString(), '2026-11-08T19:00:00.000Z');
+  assert.equal(getTashkentDate(new Date('2026-11-07T19:00:00Z')), '2026-11-08');
+});
+
+test('.env.example contains only the four deployment secrets/settings', () => {
+  const contents = fs.readFileSync(path.join(__dirname, '..', '.env.example'), 'utf8');
+  const keys = contents.split(/\r?\n/).filter(Boolean).map((line) => line.split('=', 1)[0]);
+  assert.deepEqual(keys, ['MONGODB_URI', 'APP_URL', 'ADMIN_IDS', 'API_TOKEN']);
+});
+
+test('game defaults do not read rewards or bot identity from environment variables', () => {
+  const { config } = createApplication({
+    env: {
+      API_TOKEN: '123456:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghi',
+      ADMIN_IDS: '12345',
+      APP_URL: 'https://example.com',
+      WEEKLY_PRIZE: '999999',
+      REF_REWARD: '999999',
+      BOT_USERNAME: 'must-not-be-used',
+      CHANNEL_URL: 'https://t.me/must-not-be-used',
+    },
+  });
+  assert.equal(config.weeklyPrize, 100000);
+  assert.equal(config.refReward, 50);
+  assert.equal(config.botUsername, '');
+  assert.equal(config.channelUrl, '');
+});
+
+test('API health is public but game data rejects unsigned requests', async (t) => {
+  const { app } = createApplication({
+    env: {
+      API_TOKEN: '123456:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghi',
+      ADMIN_IDS: '12345',
+      APP_URL: 'https://example.com',
+    },
+  });
+  const server = app.listen(0);
+  t.after(() => new Promise((resolve, reject) => {
+    server.closeAllConnections();
+    server.close((error) => error ? reject(error) : resolve());
+  }));
+  await new Promise((resolve) => server.once('listening', resolve));
+  const baseUrl = `http://127.0.0.1:${server.address().port}`;
+
+  const health = await fetch(`${baseUrl}/health`);
+  assert.equal(health.status, 200);
+  assert.deepEqual(await health.json(), { ok: true });
+
+  const response = await fetch(`${baseUrl}/api/me`, {
+    headers: { 'X-Telegram-Init-Data': 'user=%7B%22id%22%3A1%7D' },
+  });
+  assert.equal(response.status, 401);
+
+  const miniApp = await fetch(`${baseUrl}/`);
+  assert.equal(miniApp.status, 200);
+  assert.match(await miniApp.text(), /<title>Viral<\/title>/);
+  const background = await fetch(`${baseUrl}/assets/background.png`);
+  assert.equal(background.status, 200);
+  const backendSource = await fetch(`${baseUrl}/server.js`);
+  assert.equal(backendSource.status, 404);
+});
