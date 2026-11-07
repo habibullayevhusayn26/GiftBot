@@ -76,10 +76,10 @@ test('Telegram channel membership accepts active members and rejects left users'
   assert.equal(isActiveChatMember({ status: 'kicked' }), false);
 });
 
-test('Telegram HTML upgrades supplied emoji and safely escapes message text', () => {
+test('Telegram HTML prefixes every message inline and safely escapes message text', () => {
   assert.equal(
     toTelegramHtml('✅ <script>&'),
-    '<tg-emoji emoji-id="5971815857997750999">✅</tg-emoji> &lt;script&gt;&amp;',
+    '<tg-emoji emoji-id="5972237795584909109">💬</tg-emoji> ✅ &lt;script&gt;&amp;',
   );
   assert.equal(
     toTelegramHtml('Oddiy xabar'),
@@ -87,7 +87,7 @@ test('Telegram HTML upgrades supplied emoji and safely escapes message text', ()
   );
   assert.equal(
     toTelegramHtml('⚙️ sozlama'),
-    '<tg-emoji emoji-id="5974411495713294659">⚙️</tg-emoji> sozlama',
+    '<tg-emoji emoji-id="5972237795584909109">💬</tg-emoji> ⚙️ sozlama',
   );
 });
 
@@ -112,7 +112,7 @@ test('all bot sendMessage calls use premium-emoji HTML formatting', async () => 
   assert.equal(request[1].parse_mode, 'HTML');
   assert.equal(
     request[1].text,
-    'Taklif <tg-emoji emoji-id="5971815857997750999">✅</tg-emoji>',
+    '<tg-emoji emoji-id="5972237795584909109">💬</tg-emoji> Taklif ✅',
   );
 });
 
