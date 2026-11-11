@@ -91,6 +91,21 @@
         </div>
       </div>
 
+      <div class="card promo-card glass" id="promoCard">
+        <div class="donation-heading">
+          <span class="donation-icon promo-icon"><span class="emoji-icon" data-emoji="🎁" aria-hidden="true"></span></span>
+          <div>
+            <h2>Promo-kod</h2>
+            <p>Kodni kiriting va coin mukofotini oling.</p>
+          </div>
+        </div>
+        <label class="donation-label" for="promoCode">Promo-kod</label>
+        <input id="promoCode" class="donation-input" type="text" inputmode="text" autocomplete="off" maxlength="32" placeholder="Masalan, YANGI2026" />
+        <button class="btn primary glass-btn" id="redeemPromoBtn" type="button">
+          <span class="emoji-icon" data-emoji="🎁" aria-hidden="true"></span> Kodni ishlatish
+        </button>
+      </div>
+
       <div class="js-prize-slot"></div>
 
       <button class="btn primary glass-btn" id="dailyBtn"><span class="emoji-icon" data-emoji="🎁" aria-hidden="true"></span> Kunlik bonusni olish</button>
@@ -175,21 +190,6 @@
         <p id="meUser">@username</p>
       </div>
 
-      <div class="card promo-card glass" id="promoCard">
-        <div class="donation-heading">
-          <span class="donation-icon promo-icon"><span class="emoji-icon" data-emoji="🎁" aria-hidden="true"></span></span>
-          <div>
-            <h2>Promo-kod</h2>
-            <p>Kodni kiriting va coin mukofotini oling.</p>
-          </div>
-        </div>
-        <label class="donation-label" for="promoCode">Promo-kod</label>
-        <input id="promoCode" class="donation-input" type="text" inputmode="text" autocomplete="off" maxlength="32" placeholder="Masalan, YANGI2026" />
-        <button class="btn primary glass-btn" id="redeemPromoBtn" type="button">
-          <span class="emoji-icon" data-emoji="🎁" aria-hidden="true"></span> Kodni ishlatish
-        </button>
-      </div>
-
       <div class="card donation glass">
         <div class="donation-heading">
           <span class="donation-icon"><span class="emoji-icon" data-emoji="⭐" aria-hidden="true"></span></span>
@@ -259,6 +259,17 @@
       <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20.5c.6-4 3.6-6 8-6s7.4 2 8 6"/></svg><span>Profil</span>
     </button>
   </nav>
+
+  <div class="profile-sheet" id="profileSheet" hidden aria-hidden="true">
+    <button class="profile-sheet__backdrop" id="profileSheetBackdrop" type="button" aria-label="Profil oynasini yopish"></button>
+    <section class="profile-sheet__panel" role="dialog" aria-modal="true" aria-label="Foydalanuvchi profili" tabindex="-1">
+      <div class="profile-sheet__handle" aria-hidden="true"></div>
+      <button class="profile-sheet__close" id="profileSheetClose" type="button" aria-label="Yopish">×</button>
+      <div class="profile-sheet__content" id="profileSheetContent" aria-live="polite">
+        <div class="empty">Profil yuklanmoqda…</div>
+      </div>
+    </section>
+  </div>
 
   <!-- Captcha: birinchi ochilganda -->
   <div class="captcha" id="captcha" hidden>

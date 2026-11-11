@@ -223,6 +223,7 @@ test('top donor pipeline sums only successful Stars donations and returns named 
   assert.deepEqual(pipeline[5], { $unwind: '$user' });
   assert.deepEqual(pipeline[6].$project, {
     _id: 0,
+    userId: '$_id',
     name: '$user.name',
     username: '$user.username',
     photoUrl: '$user.photoUrl',
@@ -631,6 +632,10 @@ test('API health is public but game data rejects unsigned requests', async (t) =
   assert.match(miniAppHtml, /id="rulesContent"/);
   assert.match(miniAppHtml, /id="promoCode"/);
   assert.match(miniAppHtml, /id="redeemPromoBtn"/);
+  const homePage = miniAppHtml.match(/<section class="page active" id="page-home">([\s\S]*?)<\/section>/)?.[1] || '';
+  const profilePage = miniAppHtml.match(/<section class="page" id="page-me">([\s\S]*?)<\/section>/)?.[1] || '';
+  assert.match(homePage, /id="promoCard"/);
+  assert.doesNotMatch(profilePage, /id="promoCard"/);
   const miniAppScript = await fetch(`${baseUrl}/app.js`);
   assert.equal(miniAppScript.status, 200);
   assert.match(await miniAppScript.text(), /\/promos\/redeem/);

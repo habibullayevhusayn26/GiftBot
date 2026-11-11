@@ -177,6 +177,10 @@ let liveRank = null;
 let liveLeaderboard = null;
 let referralGift = null;
 let referralGiftProgress = { milestone: 10, progress: 0, remaining: 10, completedMilestones: 0, completedMilestone: false };
+const profilePreviews = new Map();
+let profileRequestId = 0;
+let profileCloseTimer;
+let profileReturnFocus = null;
 
 /* ---------- Haptika ---------- */
 let hapticOn = true;
@@ -198,7 +202,7 @@ const demo = {
     { id: 't4', icon: '👥', color: '#30d158', title: '3 ta do\'st taklif qiling', sub: 'Bronza mukofot', reward: 200, done: false },
   ],
   friends: Array.from({ length: 5 }, (_, i) => ({ name: NAMES[i], username: NAMES[i].toLowerCase(), earned: CONFIG.REF_REWARD, ago: `${i + 1} kun oldin` })),
-  top: NAMES.map((n, i) => ({ name: n, score: 9800 - i * 740 - i * i * 20, invited: 120 - i * 9 })),
+  top: NAMES.map((n, i) => ({ userId: `demo-top-${i + 1}`, name: n, username: n.toLowerCase(), score: 9800 - i * 740 - i * i * 20, invited: 120 - i * 9 })),
 };
 
 async function refreshLiveData() {
@@ -240,7 +244,7 @@ async function api(path, opts = {}) {
 /* ---------- Yordamchilar ---------- */
 const initials = (n) => (n || '?').trim().charAt(0).toUpperCase();
 const grad = (i) => { const g = GRADS[i % GRADS.length]; return `--a:${g[0]};--b:${g[1]}`; };
-function avatarMarkup(user, index) {
+function avatarMarkup(user, index, className = 'avatar') {
   const photoUrl = typeof user.photoUrl === 'string' ? user.photoUrl : '';
   let safePhotoUrl = '';
   if (photoUrl) {
@@ -253,7 +257,19 @@ function avatarMarkup(user, index) {
   const image = safePhotoUrl
     ? `<img class="avatar-photo" src="${esc(safePhotoUrl)}" alt="" loading="lazy" decoding="async" fetchpriority="low" />`
     : '';
-  return `<div class="avatar" style="${grad(index)}">${fallback}${image}</div>`;
+  return `<div class="${className}" style="${grad(index)}">${fallback}${image}</div>`;
+}
+function profileTriggerAttrs(user) {
+  const userId = String(user.userId ?? user.id ?? '');
+  if (!userId || (LIVE_MODE && !/^\d{1,20}$/.test(userId))) return '';
+  profilePreviews.set(userId, {
+    id: userId,
+    name: user.name || 'Foydalanuvchi',
+    username: user.username || '',
+    photoUrl: user.photoUrl || '',
+    balance: user.balance ?? user.score ?? 0,
+  });
+  return `data-profile-id="${esc(userId)}" role="button" tabindex="0" aria-label="${esc(user.name || 'Foydalanuvchi')} profilini ko‘rish"`;
 }
 function mountAvatarImages(root) {
   root.querySelectorAll('.avatar-photo:not([data-avatar-bound])').forEach((image) => {
@@ -369,12 +385,16 @@ function renderFriends() {
     ? `${referralGift.emoji} Gift · ${fmt(referralGift.stars)} Stars. Faqat tasdiqlangan takliflar hisoblanadi.`
     : 'Faqat tasdiqlangan takliflar hisoblanadi. Admin hali yuboriladigan giftni tanlamagan.';
   $('#friendList').innerHTML = n
-    ? demo.friends.map((f, i) => `
-      <div class="item">
-        <div class="avatar" style="${grad(i)}">${esc(initials(f.name))}</div>
+    ? demo.friends.map((f, i) => {
+      const profileId = f.id || (!LIVE_MODE ? `demo-friend-${i + 1}` : '');
+      const trigger = profileTriggerAttrs({ ...f, userId: profileId });
+      return `
+      <div class="item${trigger ? ' profile-trigger' : ''}" ${trigger}>
+        ${avatarMarkup(f, i)}
         <div class="txt"><b>${esc(f.name)}</b><span>${esc(f.ago)}</span></div>
         <span class="score" style="color:var(--green)">+${f.earned}</span>
-      </div>`).join('')
+      </div>`;
+    }).join('')
     : `<div class="empty">Hali hech kim taklif qilinmagan.<br>Havolani ulashing.</div>`;
 }
 
@@ -399,28 +419,36 @@ async function renderTop() {
   }
   const [a, b, c] = data;
   const podiumUser = (x, fallback) => x || { name: fallback, score: 0 };
-  const pod = (x, rank, cls) => `
-    <div class="pod glass ${cls}">
+  const pod = (x, rank, cls) => {
+    const trigger = profileTriggerAttrs(x);
+    return `
+    <div class="pod glass ${cls}${trigger ? ' profile-trigger' : ''}" ${trigger}>
       <span class="medal ${cls}">${icon({ p1: '🥇', p2: '🥈', p3: '🥉' }[cls])}</span>
       ${avatarMarkup(x, rank)}
       <b>${esc(x.name)}</b><span>${fmt(x.score)}</span>
     </div>`;
+  };
   destroyAnimations($('#podium'));
   $('#podium').innerHTML = pod(podiumUser(b, '—'), 1, 'p2') + pod(podiumUser(a, 'Hali yo‘q'), 0, 'p1') + pod(podiumUser(c, '—'), 2, 'p3');
   mountAnimations($('#podium'));
 
-  const rows = data.slice(3).map((x, i) => `
-    <div class="item lbrow">
+  const rows = data.slice(3).map((x, i) => {
+    const trigger = profileTriggerAttrs(x);
+    return `
+    <div class="item lbrow${trigger ? ' profile-trigger' : ''}" ${trigger}>
       <span class="rank">${i + 4}</span>
       ${avatarMarkup(x, i + 3)}
       <div class="txt"><b>${esc(x.name)}</b><span>${x.invited === undefined ? (x.username ? `@${esc(x.username)}` : 'Ishtirokchi') : `${x.invited} ta taklif`}</span></div>
       <span class="score">${fmt(x.score)}</span>
-    </div>`).join('');
+    </div>`;
+  }).join('');
   const ownVisible = data.some((x) => String(x.userId) === String(tgUser.id));
+  const ownProfile = { userId: tgUser.id, name: demo.user.name, username: demo.user.username, photoUrl: demo.user.photoUrl };
+  const ownTrigger = profileTriggerAttrs(ownProfile);
   const ownRow = own.score > 0 && !ownVisible ? `
-    <div class="item lbrow me">
+    <div class="item lbrow me${ownTrigger ? ' profile-trigger' : ''}" ${ownTrigger}>
       <span class="rank">${own.rank || '—'}</span>
-      ${avatarMarkup({ name: demo.user.name, photoUrl: demo.user.photoUrl }, 1)}
+      ${avatarMarkup(ownProfile, 1)}
       <div class="txt"><b>${esc(own.name)}</b><span>Sizning o‘rningiz</span></div>
       <span class="score">${fmt(own.score)}</span>
     </div>` : '';
@@ -441,13 +469,16 @@ async function renderTopDonors() {
   try {
     const donors = await api('/top-donors');
     container.innerHTML = donors.length
-      ? donors.map((donor, index) => `
-        <div class="item donor-row">
+      ? donors.map((donor, index) => {
+        const trigger = profileTriggerAttrs(donor);
+        return `
+        <div class="item donor-row${trigger ? ' profile-trigger' : ''}" ${trigger}>
           <span class="rank">${index + 1}</span>
           ${avatarMarkup(donor, index)}
           <div class="txt"><b>${esc(donor.name || 'Foydalanuvchi')}</b><span>${donor.username ? `@${esc(donor.username)}` : 'Donater'}</span></div>
           <span class="donor-stars">${fmt(donor.stars)} ⭐</span>
-        </div>`).join('')
+        </div>`;
+      }).join('')
       : '<div class="empty">Hali donat qilganlar yo‘q.</div>';
     mountAvatarImages(container);
   } catch (error) {
@@ -459,13 +490,96 @@ async function renderTopDonors() {
 function renderProfile() {
   const firstName = LIVE_MODE ? demo.user.name : tgUser.first_name;
   const username = LIVE_MODE ? demo.user.username : tgUser.username;
+  const fullName = LIVE_MODE ? firstName : firstName + (tgUser.last_name ? ' ' + tgUser.last_name : '');
   $('#meName').textContent = firstName + (LIVE_MODE ? '' : (tgUser.last_name ? ' ' + tgUser.last_name : ''));
   $('#meUser').textContent = username ? '@' + username : `ID: ${tgUser.id}`;
   const av = $('#meAvatar');
   av.setAttribute('style', grad(0));
   if (tgUser.photo_url) av.innerHTML = `<img src="${esc(tgUser.photo_url)}" alt="" />`;
   else av.textContent = initials(tgUser.first_name);
+  const profileCard = $('#page-me .profile');
+  const trigger = profileTriggerAttrs({
+    userId: demo.user.id || tgUser.id,
+    name: fullName,
+    username,
+    photoUrl: demo.user.photoUrl || tgUser.photo_url,
+    balance: demo.user.balance,
+  });
+  profileCard.classList.add('profile-trigger');
+  profileCard.setAttribute('role', 'button');
+  profileCard.setAttribute('tabindex', '0');
+  profileCard.setAttribute('aria-label', `${fullName} profilini ko‘rish`);
+  if (trigger) profileCard.dataset.profileId = String(demo.user.id || tgUser.id);
 }
+
+function renderProfileSheet(user) {
+  const content = $('#profileSheetContent');
+  content.innerHTML = `
+    ${avatarMarkup({ name: user.name, photoUrl: user.photoUrl }, 0, 'avatar profile-sheet__avatar')}
+    <h2 class="profile-sheet__name" id="profileSheetName">${esc(user.name || 'Foydalanuvchi')}</h2>
+    <p class="profile-sheet__username">${user.username ? `@${esc(user.username)}` : 'Username ko‘rsatilmagan'}</p>
+    <div class="profile-sheet__stats">
+      <div class="profile-sheet__stat"><span>Telegram ID</span><b>${esc(user.id)}</b></div>
+      <div class="profile-sheet__stat"><span>To‘plagan ball</span><b>${fmt(user.balance)} coin</b></div>
+    </div>`;
+  mountAvatarImages(content);
+}
+
+async function openProfileSheet(userId, trigger) {
+  const sheet = $('#profileSheet');
+  const content = $('#profileSheetContent');
+  const requestId = ++profileRequestId;
+  clearTimeout(profileCloseTimer);
+  profileReturnFocus = trigger;
+  content.innerHTML = '<div class="empty">Profil yuklanmoqda…</div>';
+  sheet.hidden = false;
+  sheet.setAttribute('aria-hidden', 'false');
+  document.body.classList.add('profile-open');
+  requestAnimationFrame(() => sheet.classList.add('is-open'));
+  $('#profileSheetClose').focus();
+  try {
+    const user = LIVE_MODE
+      ? await api(`/users/${encodeURIComponent(userId)}/profile`)
+      : profilePreviews.get(userId);
+    if (requestId !== profileRequestId) return;
+    if (!user) throw new Error('Foydalanuvchi profilini topib bo‘lmadi.');
+    renderProfileSheet(user);
+  } catch (error) {
+    if (requestId !== profileRequestId) return;
+    content.textContent = error.message || 'Profilni yuklab bo‘lmadi.';
+  }
+}
+
+function closeProfileSheet() {
+  const sheet = $('#profileSheet');
+  if (sheet.hidden) return;
+  profileRequestId++;
+  sheet.classList.remove('is-open');
+  sheet.setAttribute('aria-hidden', 'true');
+  document.body.classList.remove('profile-open');
+  clearTimeout(profileCloseTimer);
+  profileCloseTimer = setTimeout(() => { sheet.hidden = true; }, 340);
+  profileReturnFocus?.focus?.();
+}
+
+document.addEventListener('click', (event) => {
+  if (event.target.closest('#profileSheetClose, #profileSheetBackdrop')) {
+    closeProfileSheet();
+    return;
+  }
+  const trigger = event.target.closest('[data-profile-id]');
+  if (trigger) void openProfileSheet(trigger.dataset.profileId, trigger);
+});
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') {
+    closeProfileSheet();
+    return;
+  }
+  if ((event.key === 'Enter' || event.key === ' ') && event.target.matches('[data-profile-id]')) {
+    event.preventDefault();
+    void openProfileSheet(event.target.dataset.profileId, event.target);
+  }
+});
 
 /* ---------- Navigatsiya ---------- */
 const TABS = ['home', 'friends', 'top', 'me', 'rules'];
@@ -689,7 +803,7 @@ function openPromoFromLaunch() {
     || '';
   const launchCode = queryCode || (startParam.startsWith('promo_') ? startParam.slice(6) : '');
   if (!launchCode) return;
-  go('me', true);
+  go('home', true);
   $('#promoCode').value = launchCode.slice(0, 32);
   setTimeout(() => {
     $('#promoCard').scrollIntoView({ behavior: 'smooth', block: 'center' });

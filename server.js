@@ -376,6 +376,7 @@ function buildTopDonorsPipeline(donationCollection, userCollection, limit = 10) 
     {
       $project: {
         _id: 0,
+        userId: '$_id',
         name: '$user.name',
         username: '$user.username',
         photoUrl: '$user.photoUrl',
@@ -1386,7 +1387,7 @@ function createApplication(options = {}) {
       getPointTotal(current._id),
       getPointTotal(current._id, range),
       User.find({ invitedBy: current._id, referralRewarded: true })
-        .sort({ createdAt: -1 }).limit(50).select('firstName username createdAt').lean(),
+        .sort({ createdAt: -1 }).limit(50).select('firstName lastName username photoUrl createdAt').lean(),
       User.countDocuments({ invitedBy: current._id, referralRewarded: true }),
       currentTasks(current._id),
       leaderboard('week', current._id),
@@ -1409,8 +1410,10 @@ function createApplication(options = {}) {
       },
       tasks,
       friends: referrals.map((friend) => ({
+        id: friend._id,
         name: friend.firstName,
         username: friend.username,
+        photoUrl: friend.photoUrl,
         earned: config.refReward,
         ago: new Intl.RelativeTimeFormat('uz', { numeric: 'auto' }).format(
           -Math.max(0, Math.floor((Date.now() - friend.createdAt.getTime()) / DAY_MS)),
@@ -2955,6 +2958,24 @@ function createApplication(options = {}) {
   app.get('/api/leaderboard', authenticate, requireVerified, asyncRoute(async (req, res) => {
     const period = req.query.period === 'all' ? 'all' : 'week';
     res.json(await leaderboard(period, String(req.telegram.id)));
+  }));
+
+  app.get('/api/users/:userId/profile', authenticate, requireVerified, asyncRoute(async (req, res) => {
+    const { userId } = req.params;
+    if (!/^\d{1,20}$/.test(userId)) throw new HttpError(400, 'Foydalanuvchi ID raqami noto‘g‘ri.');
+    const user = await User.findById(userId)
+      .select('firstName lastName username photoUrl verified banned referralReviewStatus')
+      .lean();
+    if (!user || !user.verified || user.banned || user.referralReviewStatus === 'rejected') {
+      throw new HttpError(404, 'Foydalanuvchi profili topilmadi.');
+    }
+    res.json({
+      id: userId,
+      name: [user.firstName, user.lastName].filter(Boolean).join(' '),
+      username: user.username,
+      photoUrl: user.photoUrl,
+      balance: await getPointTotal(userId),
+    });
   }));
 
   app.get('/api/top-donors', authenticate, requireVerified, asyncRoute(async (req, res) => {
