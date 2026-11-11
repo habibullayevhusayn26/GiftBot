@@ -25,6 +25,8 @@
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+* { scrollbar-width: none; -ms-overflow-style: none; }
+*::-webkit-scrollbar { display: none; }
 html, body { margin: 0; background-color: var(--bg); color: var(--label); font-family: var(--font); -webkit-font-smoothing: antialiased; }
 body { min-height: 100vh; overflow-x: hidden; }
 button { font-family: inherit; border: 0; background: none; color: inherit; cursor: pointer; }
