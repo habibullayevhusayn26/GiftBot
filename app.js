@@ -681,8 +681,12 @@ $('#promoCode').addEventListener('keydown', (event) => {
   }
 });
 function openPromoFromLaunch() {
-  const queryCode = new URLSearchParams(window.location.search).get('promo');
-  const startParam = tg?.initDataUnsafe?.start_param || '';
+  const searchParams = new URLSearchParams(window.location.search);
+  const queryCode = searchParams.get('promo');
+  const startParam = tg?.initDataUnsafe?.start_param
+    || searchParams.get('tgWebAppStartParam')
+    || searchParams.get('startapp')
+    || '';
   const launchCode = queryCode || (startParam.startsWith('promo_') ? startParam.slice(6) : '');
   if (!launchCode) return;
   go('me', true);
