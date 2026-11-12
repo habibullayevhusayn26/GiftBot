@@ -3067,8 +3067,11 @@ function createApplication(options = {}) {
 
   app.use('/assets', express.static(path.join(__dirname, 'assets'), { dotfiles: 'deny', index: false }));
   app.use('/icons', express.static(path.join(__dirname, 'icons'), { dotfiles: 'deny', index: false }));
+  app.get('/mini-app.html', (req, res, next) => {
+    res.sendFile(path.join(__dirname, 'mini-app.html'), (error) => error && next(error));
+  });
   app.get(['/', '/index.html'], (req, res, next) => {
-    res.sendFile(path.join(__dirname, 'index.html'), (error) => error && next(error));
+    res.sendFile(path.join(__dirname, 'mini-app.html'), (error) => error && next(error));
   });
   app.get('/style.css', (req, res, next) => {
     res.sendFile(path.join(__dirname, 'style.css'), (error) => error && next(error));

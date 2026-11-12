@@ -1,0 +1,2278 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#000000" />
+  <title>Viral</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+/* ============================================================
+   Liquid Glass — iOS uslubidagi Telegram Mini App
+   ============================================================ */
+:root {
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", "Helvetica Neue", system-ui, sans-serif;
+  --bg: #09111c;
+  --bg-2: #111b2b;
+  --label: #edf4ff;
+  --label2: rgba(210, 220, 238, .78);
+  --label3: rgba(175, 188, 214, .46);
+  --sep: rgba(148, 163, 184, .18);
+  --blue: #5aa8ff;
+  --green: #39d98a;
+  --orange: #ffb454;
+  --red: #ff6b6b;
+  --purple: #8c7dff;
+  --glass: rgba(15, 23, 42, .62);
+  --glass-strong: rgba(15, 23, 42, .78);
+  --glass-border: rgba(148, 163, 184, .18);
+  --glass-shadow: 0 16px 40px rgba(2, 6, 23, .45), inset 0 1px 0 rgba(255,255,255,.06);
+  --fill: rgba(148, 163, 184, .12);
+  --r: 26px;
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-t: env(safe-area-inset-top, 0px);
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+* { scrollbar-width: none; -ms-overflow-style: none; }
+*::-webkit-scrollbar { display: none; }
+html, body { margin: 0; background-color: var(--bg); color: var(--label); font-family: var(--font); -webkit-font-smoothing: antialiased; }
+body { min-height: 100vh; overflow-x: hidden; }
+button { font-family: inherit; border: 0; background: none; color: inherit; cursor: pointer; }
+.emoji-icon { display: inline-grid; width: 24px; height: 24px; flex: none; place-items: center; font-family: "Apple Color Emoji", "Segoe UI Emoji", sans-serif; font-size: 22px; line-height: 1; vertical-align: middle; }
+.emoji-icon svg { display: block; width: 100% !important; height: 100% !important; }
+
+.loading-intro {
+  --intro-bg: #f2f2f7;
+  --intro-ink: #1c1c1e;
+  --intro-sub: rgba(60,60,67,.6);
+  --intro-glass: rgba(255,255,255,.55);
+  --intro-edge: rgba(255,255,255,.9);
+  --intro-shade: rgba(0,0,0,.08);
+  --intro-blue: #0a84ff;
+  --intro-purple: #bf5af2;
+  --intro-teal: #30d5c8;
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+  background: var(--intro-bg);
+  color: var(--intro-ink);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+@media (prefers-color-scheme: dark) {
+  .loading-intro {
+    --intro-bg: #000;
+    --intro-ink: #fff;
+    --intro-sub: rgba(235,235,245,.6);
+    --intro-glass: rgba(60,60,67,.45);
+    --intro-edge: rgba(255,255,255,.22);
+    --intro-shade: rgba(0,0,0,.5);
+  }
+}
+.loading-intro__bg { position: absolute; inset: 0; overflow: hidden; }
+.loading-intro__bg i {
+  position: absolute;
+  width: 62vmax;
+  height: 62vmax;
+  border-radius: 50%;
+  filter: blur(60px);
+  opacity: .55;
+  will-change: transform;
+  animation: introFloat 9s ease-in-out infinite alternate;
+}
+.loading-intro__bg i:nth-child(1) { background: var(--intro-blue); left: -20vmax; top: -18vmax; }
+.loading-intro__bg i:nth-child(2) { background: var(--intro-purple); right: -24vmax; top: 18vh; animation-delay: -3s; }
+.loading-intro__bg i:nth-child(3) { background: var(--intro-teal); left: 8vw; bottom: -28vmax; animation-delay: -6s; }
+@keyframes introFloat { to { transform: translate3d(6vmax,-4vmax,0) scale(1.12); } }
+.loading-intro__content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 26px;
+}
+.loading-intro__orb {
+  position: relative;
+  display: grid;
+  width: 112px;
+  height: 112px;
+  place-items: center;
+  border-radius: 32px;
+  background: var(--intro-glass);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  backdrop-filter: blur(28px) saturate(180%);
+  box-shadow: inset 0 1.5px 0 var(--intro-edge), inset 0 -1px 0 rgba(255,255,255,.12),
+    0 24px 48px -12px var(--intro-shade), 0 2px 6px var(--intro-shade);
+  animation: introPop .9s cubic-bezier(.2,1.3,.3,1) both;
+}
+.loading-intro__orb::after {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(120deg,transparent 35%,rgba(255,255,255,.55) 50%,transparent 65%);
+  background-size: 250% 100%;
+  background-position: 150% 0;
+  mix-blend-mode: overlay;
+  content: "";
+  animation: introSheen 2.6s ease-in-out .8s infinite;
+}
+@keyframes introPop { from { opacity: 0; transform: scale(.6) translateY(20px); } }
+@keyframes introSheen { to { background-position: -150% 0; } }
+.loading-intro__orb svg { width: 56px; height: 56px; transform: rotate(-90deg); }
+.loading-intro__orb circle { fill: none; stroke-width: 5; stroke-linecap: round; }
+.loading-intro__track { stroke: var(--intro-sub); opacity: .25; }
+.loading-intro__ring {
+  stroke: var(--intro-ink);
+  stroke-dasharray: 140;
+  stroke-dashoffset: 140;
+  transform-origin: 50% 50%;
+  animation: introRing 1.8s cubic-bezier(.4,0,.2,1) infinite;
+}
+@keyframes introRing {
+  0% { stroke-dashoffset: 140; transform: rotate(0); }
+  60% { stroke-dashoffset: 35; }
+  100% { stroke-dashoffset: 140; transform: rotate(360deg); }
+}
+.loading-intro__content h1 { margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -.6px; animation: introUp .8s .25s both; }
+.loading-intro__content p { margin: -18px 0 0; color: var(--intro-sub); font-size: 15px; animation: introUp .8s .4s both; }
+@keyframes introUp { from { opacity: 0; transform: translateY(10px); } }
+.loading-intro__bar {
+  width: 150px;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 9px;
+  background: var(--intro-glass);
+  box-shadow: inset 0 0 0 .5px var(--intro-edge);
+  animation: introUp .8s .55s both;
+}
+.loading-intro__bar b {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg,var(--intro-blue),var(--intro-purple));
+  transition: width .35s ease-out;
+}
+.loading-intro.is-done .loading-intro__content { animation: introOut .45s cubic-bezier(.4,0,1,1) forwards; }
+@keyframes introOut { to { opacity: 0; transform: scale(1.08); filter: blur(8px); } }
+@media (prefers-reduced-motion: reduce) {
+  .loading-intro *, .loading-intro *::before, .loading-intro *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+}
+
+.bg { position: fixed; inset: 0; z-index: -1; overflow: hidden; background: linear-gradient(180deg, rgba(7,12,20,.25), rgba(7,12,20,.72)); }
+.blob { position: absolute; border-radius: 50%; filter: blur(90px); opacity: .45; }
+.b1 { width: 340px; height: 340px; background: rgba(90,168,255,.35); top: -110px; left: -70px; animation: float 14s ease-in-out infinite; }
+.b2 { width: 320px; height: 320px; background: rgba(140,125,255,.30); top: 36%; right: -90px; animation: float 17s ease-in-out infinite reverse; }
+.b3 { width: 300px; height: 300px; background: rgba(255,180,84,.22); bottom: -80px; left: 12%; animation: float 19s ease-in-out infinite; }
+@keyframes float { 50% { transform: translate(28px, 34px) scale(1.06); } }
+
+/* Shisha materiali */
+.glass {
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  backdrop-filter: blur(28px) saturate(190%);
+  border: .5px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+
+#app { padding: calc(var(--safe-t) + 8px) 16px calc(var(--safe-b) + 120px); max-width: 560px; margin: 0 auto; }
+.page { display: none; animation: pageIn .45s cubic-bezier(.2, .8, .2, 1); }
+.page.active { display: block; }
+@keyframes pageIn { from { opacity: 0; transform: translateY(14px) scale(.985); } to { opacity: 1; transform: none; } }
+
+.large-title { padding: 18px 6px 14px; }
+.large-title .sub { margin: 0 0 3px; font-size: 14px; color: var(--label2); font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+.large-title h1 { margin: 0; font-size: 34px; letter-spacing: -.7px; font-weight: 800; }
+.section { margin: 28px 10px 10px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .12em; color: var(--label2); display: flex; align-items: center; gap: 8px; }
+.count { background: var(--fill); border-radius: 20px; padding: 2px 10px; font-size: 12px; }
+
+.card { border-radius: var(--r); padding: 20px; background: var(--glass); border: 1px solid var(--glass-border); box-shadow: var(--glass-shadow); }
+
+.hero { position: relative; overflow: hidden; }
+.hero::before {
+  content: ""; position: absolute; inset: 0; z-index: -1;
+  background: linear-gradient(135deg, rgba(90,168,255,.18), rgba(140,125,255,.14) 50%, rgba(255,180,84,.08));
+}
+.label { margin: 0; font-size: 13px; color: var(--label2); font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+.balance { display: flex; align-items: baseline; gap: 8px; margin: 2px 0 18px; }
+.balance span { font-size: 52px; font-weight: 800; letter-spacing: -1.5px; font-variant-numeric: tabular-nums; }
+.balance small { font-size: 18px; font-weight: 600; color: var(--label2); }
+.level-row { display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; color: var(--label2); margin-bottom: 8px; }
+.level-title { display: inline-flex; align-items: center; gap: 5px; }
+.level-title .emoji-icon { width: 18px; height: 18px; font-size: 18px; }
+#levelBadge[hidden] { display: none; }
+.progress { height: 9px; border-radius: 999px; background: rgba(148,163,184,.12); overflow: hidden; }
+.progress i { display: block; height: 100%; width: 0; border-radius: inherit; background: linear-gradient(90deg, var(--blue), var(--purple)); transition: width 1s cubic-bezier(.2, .8, .2, 1); }
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--sep); text-align: center; }
+.stats b { display: block; font-size: 21px; font-weight: 700; }
+.stats span { font-size: 12px; color: var(--label2); }
+
+.btn { height: 52px; border-radius: 16px; padding: 0 22px; font-size: 16px; font-weight: 700; letter-spacing: .01em; transition: transform .18s cubic-bezier(.3, 1.4, .5, 1), opacity .2s, box-shadow .2s; }
+.btn:active { transform: scale(.97); opacity: .85; }
+.btn.primary { background: linear-gradient(135deg, #5aa8ff, #7b7bff); color: #fff; box-shadow: 0 10px 24px rgba(90,168,255,.32); }
+.btn.tinted { background: rgba(90,168,255,.12); color: var(--blue); border: 1px solid rgba(90,168,255,.18); }
+.btn .emoji-icon { width: 19px; height: 19px; margin-right: 5px; font-size: 19px; }
+.btn:disabled { opacity: .45; pointer-events: none; }
+.glass-btn { width: 100%; margin-top: 14px; }
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+
+.list { border-radius: var(--r); overflow: hidden; background: var(--glass); border: 1px solid var(--glass-border); box-shadow: var(--glass-shadow); }
+.item { display: flex; align-items: center; gap: 13px; padding: 12px 16px; min-height: 60px; position: relative; background: rgba(15,23,42,.18); transition: background .15s; }
+.item + .item::before { content: ""; position: absolute; top: 0; left: 68px; right: 0; height: 1px; background: var(--sep); }
+.item:active { background: rgba(148,163,184,.08); }
+.ico { width: 40px; height: 40px; border-radius: 12px; background: var(--c, var(--blue)); display: grid; place-items: center; font-size: 18px; flex: none; box-shadow: inset 0 1px 0 rgba(255,255,255,.26); }
+.ico .emoji-icon { width: 23px; height: 23px; font-size: 21px; }
+.tier-icon { color: #d7e5f7; }
+.tier-bronza { color: #df9b69; }
+.tier-kumush { color: #cbd5e1; }
+.tier-oltin { color: #ffd166; }
+.tier-olmos { color: #7dd3fc; }
+.txt { flex: 1; min-width: 0; }
+.txt b { display: block; font-size: 16px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.txt span { font-size: 13px; color: var(--label2); }
+.chev { color: var(--label3); font-size: 24px; font-weight: 300; }
+.pill { height: 32px; padding: 0 14px; border-radius: 999px; font-size: 13px; font-weight: 700; background: rgba(90,168,255,.12); color: var(--blue); border: 1px solid rgba(90,168,255,.16); transition: transform .15s; }
+.pill:active { transform: scale(.96); }
+.pill:disabled { opacity: .58; cursor: default; }
+.pill.done { background: rgba(57,217,138,.12); color: var(--green); border-color: rgba(57,217,138,.18); pointer-events: none; }
+.empty { padding: 28px 16px; text-align: center; color: var(--label2); font-size: 15px; }
+.task-link { display: inline-block; margin-top: 3px; color: var(--blue); font-size: 11px; font-weight: 600; text-decoration: none; }
+.task-proof { display: block; width: min(100%, 220px); margin-top: 6px; padding: 7px 9px; border: 1px solid var(--glass-border); border-radius: 9px; background: rgba(0,0,0,.2); color: var(--label); font: inherit; font-size: 11px; }
+.task-proof::placeholder { color: var(--label3); }
+
+/* Taklif kartasi */
+.invite { text-align: center; }
+.invite-icon { width: 76px; height: 76px; margin: 0 auto; display: grid; place-items: center; border-radius: 24px; color: #9dcaff; background: linear-gradient(145deg, rgba(90,168,255,.2), rgba(140,125,255,.12)); border: 1px solid rgba(90,168,255,.18); animation: bob 3s ease-in-out infinite; filter: drop-shadow(0 8px 20px rgba(90,168,255,.18)); }
+.invite-icon .emoji-icon { width: 42px; height: 42px; font-size: 39px; }
+@keyframes bob { 50% { transform: translateY(-6px) rotate(-6deg); } }
+.invite h3 { margin: 8px 0 8px; font-size: 24px; letter-spacing: -.4px; line-height: 1.15; }
+.invite p { margin: 0 0 16px; font-size: 15px; line-height: 1.5; color: var(--label2); }
+.invite p b { color: var(--label); }
+.link-box { background: rgba(148,163,184,.08); border: 1px solid var(--glass-border); border-radius: 14px; padding: 13px 14px; font-size: 14px; font-weight: 600; color: var(--blue); word-break: break-all; text-align: left; }
+.referral-milestone { margin-top: 14px; }
+.milestone-heading { display: flex; align-items: center; gap: 12px; }
+.milestone-icon { display: grid; width: 44px; height: 44px; flex: none; place-items: center; border-radius: 14px; color: #ffd166; background: rgba(255,209,102,.12); }
+.milestone-icon .emoji-icon { width: 25px; height: 25px; font-size: 24px; }
+.milestone-heading h3 { margin: 0; font-size: 17px; }
+.milestone-heading p { margin: 4px 0 0; color: var(--label2); font-size: 12px; line-height: 1.4; }
+.milestone-progress-copy { display: flex; justify-content: space-between; gap: 8px; margin-top: 17px; color: var(--label2); font-size: 12px; font-weight: 600; }
+.milestone-progress { height: 8px; margin-top: 8px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,.09); }
+.milestone-progress i { display: block; width: 0; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #f5a623, #ffd166); transition: width .45s ease; }
+
+/* Daraja progress */
+.tier .progress { height: 6px; margin-top: 7px; }
+.tier .progress i { transition-delay: .2s; }
+
+/* Avatar */
+.avatar { position: relative; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-weight: 700; font-size: 17px; flex: none; background: linear-gradient(135deg, var(--a, #0a84ff), var(--b, #bf5af2)); overflow: hidden; }
+.avatar-fallback { position: relative; z-index: 1; transition: opacity .15s; }
+.avatar .avatar-photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity .15s; }
+.avatar.has-photo .avatar-photo { opacity: 1; }
+.avatar.has-photo .avatar-fallback { opacity: 0; }
+.avatar.big { width: 84px; height: 84px; font-size: 34px; margin: 0 auto 12px; box-shadow: 0 8px 24px rgba(10, 132, 255, .3); }
+.profile { text-align: center; }
+.profile h3 { margin: 0; font-size: 24px; }
+.profile p { margin: 3px 0 0; color: var(--label2); }
+.profile-trigger { cursor: pointer; }
+.profile-trigger:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
+.profile-sheet[hidden] { display: none; }
+.profile-sheet { position: fixed; inset: 0; z-index: 150; display: flex; align-items: flex-end; justify-content: center; }
+.profile-sheet__backdrop { position: absolute; inset: 0; width: 100%; height: 100%; background: rgba(0,0,0,.52); opacity: 0; transition: opacity .24s ease; }
+.profile-sheet__panel { position: relative; width: min(100%, 560px); max-height: min(78vh, 640px); overflow-y: auto; padding: 10px 22px calc(28px + var(--safe-b)); border: 1px solid rgba(255,255,255,.1); border-bottom: 0; border-radius: 28px 28px 0 0; background: rgba(25,25,33,.96); box-shadow: 0 -18px 54px rgba(0,0,0,.38); -webkit-backdrop-filter: blur(32px) saturate(170%); backdrop-filter: blur(32px) saturate(170%); transform: translateY(100%); transition: transform .32s cubic-bezier(.2,.8,.2,1); }
+.profile-sheet.is-open .profile-sheet__backdrop { opacity: 1; }
+.profile-sheet.is-open .profile-sheet__panel { transform: translateY(0); }
+.profile-sheet__handle { width: 38px; height: 5px; margin: 0 auto 24px; border-radius: 999px; background: rgba(255,255,255,.28); }
+.profile-sheet__close { position: absolute; top: 15px; right: 16px; width: 34px; height: 34px; border-radius: 50%; background: rgba(255,255,255,.09); color: var(--label2); font-size: 26px; line-height: 1; }
+.profile-sheet__content { text-align: center; }
+.profile-sheet__avatar { width: 92px; height: 92px; margin: 0 auto 14px; font-size: 38px; }
+.profile-sheet__name { margin: 0; font-size: 24px; letter-spacing: -.4px; }
+.profile-sheet__username { margin: 5px 0 22px; color: var(--label2); font-size: 14px; }
+.profile-sheet__stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; text-align: left; }
+.profile-sheet__stat { min-width: 0; padding: 14px; border: 1px solid rgba(255,255,255,.07); border-radius: 17px; background: rgba(255,255,255,.045); }
+.profile-sheet__stat span { display: block; margin-bottom: 6px; color: var(--label2); font-size: 12px; }
+.profile-sheet__stat b { display: block; overflow-wrap: anywhere; font-size: 16px; font-variant-numeric: tabular-nums; }
+body.profile-open { overflow: hidden; }
+.promo-card { margin-top: 16px; }
+.promo-icon { color: #c69aff; background: rgba(169,107,255,.14); }
+.promo-card .glass-btn { display: flex; align-items: center; justify-content: center; gap: 5px; margin-top: 12px; }
+.promo-card .glass-btn .emoji-icon { width: 19px; height: 19px; font-size: 19px; }
+.donation { margin-top: 16px; }
+.donation-heading { display: flex; align-items: center; gap: 12px; }
+.donation-icon { display: grid; width: 46px; height: 46px; flex: none; place-items: center; border-radius: 15px; color: #ffd166; background: rgba(255,209,102,.12); }
+.donation-icon .emoji-icon { width: 25px; height: 25px; font-size: 24px; }
+.donation-heading h2 { margin: 0; font-size: 17px; }
+.donation-heading p { margin: 4px 0 0; color: var(--label2); font-size: 13px; line-height: 1.4; }
+.donation-label { display: block; margin: 18px 0 7px; color: var(--label2); font-size: 13px; font-weight: 600; }
+.donation-input { width: 100%; height: 48px; padding: 0 14px; border: 1px solid var(--glass-border); border-radius: 14px; outline: none; background: rgba(148,163,184,.08); color: var(--label); font: inherit; font-size: 16px; }
+.donation-message { display: block; height: auto; min-height: 84px; padding: 12px 14px; resize: vertical; line-height: 1.4; }
+.donation-hint { display: block; margin-top: 7px; color: var(--label3); font-size: 11px; line-height: 1.4; }
+.donation-input:focus { border-color: rgba(169,107,255,.55); box-shadow: 0 0 0 3px rgba(169,107,255,.12); }
+.donation .glass-btn { display: flex; align-items: center; justify-content: center; gap: 5px; margin-top: 12px; }
+.donation .glass-btn .emoji-icon { width: 19px; height: 19px; font-size: 19px; }
+.foot { text-align: center; color: var(--label3); font-size: 13px; margin-top: 22px; }
+
+/* Segmented control */
+.segmented { position: relative; display: grid; grid-template-columns: 1fr 1fr; padding: 3px; border-radius: 20px; margin-bottom: 18px; }
+.segmented button { position: relative; z-index: 1; height: 34px; font-size: 14px; font-weight: 600; color: var(--label2); transition: color .25s; }
+.segmented button.on { color: var(--label); }
+.thumb { position: absolute; top: 3px; bottom: 3px; left: 3px; width: calc(50% - 3px); border-radius: 17px; background: var(--glass-strong); box-shadow: 0 2px 10px rgba(0, 0, 0, .14); transition: transform .4s cubic-bezier(.3, 1.3, .5, 1); }
+
+/* Podium */
+.podium { display: grid; grid-template-columns: 1fr 1.15fr 1fr; align-items: end; gap: 10px; margin-bottom: 16px; }
+.pod { text-align: center; border-radius: 22px; padding: 14px 6px 12px; background: rgba(15,23,42,.38); border: 1px solid var(--glass-border); }
+.pod.p1 { padding-top: 20px; padding-bottom: 18px; background: linear-gradient(180deg, rgba(255, 180, 84, .16), rgba(15,23,42,.52)); }
+.pod .avatar { margin: 0 auto 7px; width: 48px; height: 48px; }
+.pod.p1 .avatar { width: 58px; height: 58px; }
+.pod b { display: block; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 4px; }
+.pod span { font-size: 12px; color: var(--label2); font-weight: 600; }
+.medal { display: block; margin-bottom: 4px; color: #9caec6; }
+.medal .emoji-icon { width: 23px; height: 23px; font-size: 22px; }
+.medal.p1 { color: #ffd166; }
+.medal.p2 { color: #cbd5e1; }
+.medal.p3 { color: #df9b69; }
+.rank { width: 26px; text-align: center; font-weight: 700; color: var(--label2); font-size: 15px; font-variant-numeric: tabular-nums; }
+.item.me { background: rgba(90,168,255,.12); }
+.score { font-weight: 700; font-variant-numeric: tabular-nums; }
+.item.lbrow + .item.lbrow::before { left: 74px; }
+
+/* Switch (iOS) */
+.switch { position: relative; width: 51px; height: 31px; flex: none; }
+.switch input { display: none; }
+.switch i { position: absolute; inset: 0; border-radius: 16px; background: var(--fill); transition: background .3s; }
+.switch i::after { content: ""; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%; background: #fff; box-shadow: 0 3px 8px rgba(0, 0, 0, .25); transition: transform .35s cubic-bezier(.3, 1.4, .5, 1), width .2s; }
+.switch input:checked + i { background: var(--green); }
+.switch input:checked + i::after { transform: translateX(20px); }
+.switch:active i::after { width: 33px; }
+.switch input:checked:active + i::after { transform: translateX(14px); }
+
+/* Suzuvchi shisha Tab Bar */
+.tabbar {
+  position: fixed; left: 50%; bottom: calc(var(--safe-b) + 14px); transform: translateX(-50%);
+  width: min(calc(100% - 32px), 400px); height: 68px; border-radius: 34px;
+  display: grid; grid-template-columns: repeat(4, 1fr); padding: 5px; z-index: 50;
+  background: rgba(0,0,0,.1);
+  -webkit-backdrop-filter: blur(24px) saturate(1.2);
+  backdrop-filter: blur(24px) saturate(1.2);
+  border: 1px solid var(--glass-border);
+  box-shadow: inset 0 0 2px 1px rgba(255,255,255,.35), inset 0 0 10px 4px rgba(255,255,255,.15), inset 0 4px 16px rgba(3,8,16,.05), inset 0 8px 24px rgba(3,8,16,.05), inset 0 6px 56px rgba(3,8,16,.05), 0 18px 40px rgba(2,6,23,.45);
+}
+.tabbar button { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: var(--label2); transition: color .25s, transform .25s; }
+.tabbar button:active { transform: scale(.9); }
+.tabbar button.on { color: var(--blue); }
+.tabbar svg { width: 25px; height: 25px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.tabbar button.on svg { fill: currentColor; fill-opacity: .18; }
+.tabbar span { font-size: 10.5px; font-weight: 600; }
+.tab-thumb { position: absolute; top: 5px; bottom: 5px; left: 5px; width: calc((100% - 10px) / 4); border-radius: 29px; background: rgba(90,168,255,.12); border: 1px solid rgba(90,168,255,.08); transition: transform .5s cubic-bezier(.3, 1.25, .5, 1); }
+
+/* Toast */
+.toast { position: fixed; left: 50%; top: calc(var(--safe-t) + 14px); transform: translate(-50%, -140%); padding: 12px 20px; border-radius: 18px; font-size: 15px; font-weight: 600; background: rgba(15,23,42,.82); border: 1px solid var(--glass-border); -webkit-backdrop-filter: blur(24px); backdrop-filter: blur(24px); box-shadow: 0 12px 28px rgba(2, 6, 23, .35); z-index: 100; transition: transform .5s cubic-bezier(.3, 1.3, .5, 1); max-width: 90%; text-align: center; }
+.toast.show { transform: translate(-50%, 0); }
+
+/* Konfetti */
+.confetti { position: fixed; top: -10px; width: 9px; height: 14px; border-radius: 2px; z-index: 120; pointer-events: none; animation: fall 1.6s ease-in forwards; }
+@keyframes fall { to { transform: translate(var(--x), 105vh) rotate(720deg); opacity: .9; } }
+
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition-duration: .01ms !important; } }
+
+/* Haftalik sovg'a */
+.prize { margin-top: 14px; position: relative; overflow: hidden; border-radius: 24px; background: rgba(15,23,42,.38); border: 1px solid var(--glass-border); }
+.prize::before { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(135deg, rgba(255, 180, 84, .18), rgba(90,168,255,.10) 50%, rgba(140,125,255,.08)); }
+.prize-head { display: flex; align-items: center; gap: 12px; }
+.trophy { font-size: 34px; animation: bob 3s ease-in-out infinite; }
+.trophy .emoji-icon { width: 38px; height: 38px; font-size: 34px; }
+.prize-head b { display: block; font-size: 17px; font-weight: 700; }
+.prize-head span { font-size: 13px; color: var(--label2); }
+.prize-amount { font-size: 38px; font-weight: 800; letter-spacing: -1px; margin: 12px 0 14px; font-variant-numeric: tabular-nums; }
+.prize-amount small { font-size: 17px; font-weight: 600; color: var(--label2); letter-spacing: 0; }
+.countdown { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.countdown div { background: rgba(148,163,184,.08); border: 1px solid var(--glass-border); border-radius: 14px; padding: 9px 0 7px; text-align: center; }
+.countdown b { display: block; font-size: 21px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.countdown span { font-size: 11px; color: var(--label2); font-weight: 500; }
+
+/* Captcha */
+body.locked { overflow: hidden; }
+.captcha { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; padding: 20px; background: rgba(9,17,28,.55); -webkit-backdrop-filter: blur(40px) saturate(180%); backdrop-filter: blur(40px) saturate(180%); animation: pageIn .5s cubic-bezier(.2, .8, .2, 1); }
+.captcha[hidden] { display: none; }
+.cap-card { width: min(100%, 380px); border-radius: 32px; padding: 26px 22px 22px; text-align: center; background: rgba(15, 23, 42, .82); border: 1px solid var(--glass-border); box-shadow: 0 24px 48px rgba(2, 6, 23, .5); }
+.cap-ico { font-size: 44px; }
+.cap-ico .emoji-icon { width: 44px; height: 44px; font-size: 42px; }
+.cap-card h2 { margin: 6px 0 8px; font-size: 25px; letter-spacing: -.5px; }
+.cap-ref { margin: 0 0 10px; padding: 10px 12px; border-radius: 14px; background: rgba(57,217,138,.12); color: var(--green); font-size: 13.5px; font-weight: 600; line-height: 1.35; }
+.cap-q { margin: 0; color: var(--label2); font-size: 15px; }
+.cap-target { margin: 6px 0 16px; font-size: 30px; font-weight: 800; letter-spacing: -.5px; color: var(--blue); }
+.cap-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.cap-grid button { aspect-ratio: 1; border-radius: 22px; font-size: 40px; background: rgba(148,163,184,.08); border: 1px solid var(--glass-border); transition: transform .2s cubic-bezier(.3, 1.4, .5, 1), background .2s; }
+.cap-grid button:active { transform: scale(.94); background: rgba(90,168,255,.15); }
+.cap-grid button.wrong { background: rgba(255,107,107,.15); animation: shake .4s; }
+@keyframes shake { 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
+.cap-dots { display: flex; justify-content: center; gap: 8px; margin: 16px 0 4px; }
+.cap-dots i { width: 8px; height: 8px; border-radius: 50%; background: rgba(148,163,184,.18); transition: background .3s, transform .3s; }
+.cap-dots i.on { background: var(--green); transform: scale(1.25); }
+#capMsg { display: block; min-height: 18px; margin-top: 6px; color: var(--red); font-size: 13px; font-weight: 600; }
+
+.cap-grid button.num { font-size: 30px; font-weight: 700; color: var(--label); }
+.cap-target { min-height: 44px; word-break: break-word; line-height: 1.25; }
+
+/* Gamety-inspired game dashboard (navigation intentionally unchanged) */
+#app {
+  --label: #f5f2ff;
+  --label2: #a7a4b8;
+  --label3: #747184;
+  --sep: rgba(255,255,255,.07);
+  --blue: #a96bff;
+  --green: #59dfa4;
+  --orange: #ffc45c;
+  --purple: #7757ff;
+  --glass: #15141f;
+  --glass-strong: #1b1928;
+  --glass-border: rgba(255,255,255,.08);
+  --glass-shadow: 0 14px 34px rgba(0,0,0,.24);
+  --fill: rgba(255,255,255,.07);
+}
+
+#app .large-title { padding: 20px 4px 16px; }
+#app .large-title .sub { font-size: 13px; letter-spacing: .01em; text-transform: none; color: #aaa5ba; }
+#app .large-title h1 { font-size: 30px; letter-spacing: -.8px; }
+#app .section { margin: 24px 2px 12px; color: #e8e4f2; font-size: 16px; text-transform: none; letter-spacing: -.2px; }
+#app .card,
+#app .list { border-color: rgba(255,255,255,.07); box-shadow: 0 12px 30px rgba(0,0,0,.2); }
+
+#page-home .hero {
+  padding: 22px 20px 18px;
+  border: 1px solid rgba(169,107,255,.22);
+  border-radius: 24px;
+  background:
+    radial-gradient(ellipse at 92% 8%, rgba(127,75,210,.25), transparent 44%),
+    linear-gradient(145deg, #1d192b, #12121c 68%);
+  box-shadow: 0 16px 38px rgba(0,0,0,.28), inset 0 1px rgba(255,255,255,.05);
+}
+#page-home .hero::before { display: none; }
+#page-home .label { color: #b6b0c5; font-size: 12px; letter-spacing: .1em; }
+#page-home .balance { margin: 7px 0 20px; gap: 9px; }
+#page-home .balance span { font-size: clamp(42px, 12vw, 54px); line-height: 1; letter-spacing: -1.8px; }
+#page-home .balance small { padding: 5px 10px; border-radius: 999px; background: rgba(169,107,255,.13); color: #c79aff; font-size: 13px; }
+#page-home .level-row { color: #b6b0c5; font-size: 12px; }
+#page-home .progress { height: 7px; background: rgba(255,255,255,.09); }
+#page-home .progress i { background: linear-gradient(90deg, #7846ea, #b978ff); box-shadow: 0 0 14px rgba(169,107,255,.45); }
+#page-home .stats { margin-top: 20px; padding-top: 15px; border-color: rgba(255,255,255,.08); }
+#page-home .stats > div { padding: 0 4px; }
+#page-home .stats > div + div { border-left: 1px solid rgba(255,255,255,.08); }
+#page-home .stats b { font-size: 18px; }
+.donor-row .rank { color: #ffd166; }
+.donor-stars { flex: none; color: #ffd166; font-size: 13px; font-weight: 700; white-space: nowrap; }
+#page-home .stats span { display: block; margin-top: 3px; font-size: 10px; color: #9792a8; }
+
+#page-home .glass-btn { height: 54px; border-radius: 17px; background: linear-gradient(100deg, #8049ef, #a45bfa); box-shadow: 0 9px 24px rgba(125,69,226,.24); }
+#page-home #taskList { display: grid; gap: 10px; overflow: visible; border: 0; background: transparent; box-shadow: none; }
+#page-home #taskList .item {
+  min-height: 74px;
+  padding: 12px;
+  gap: 12px;
+  border: 1px solid rgba(255,255,255,.065);
+  border-radius: 18px;
+  background: linear-gradient(110deg, #171722, #13131d);
+}
+#page-home #taskList .item::before { display: none; }
+#page-home #taskList .ico { width: 44px; height: 44px; border-radius: 14px; background: rgba(169,107,255,.12) !important; color: #c499ff; box-shadow: none; }
+#page-home #taskList .ico .emoji-icon { width: 25px; height: 25px; font-size: 22px; }
+#page-home #taskList .txt b { font-size: 14px; }
+#page-home #taskList .txt span { display: block; margin-top: 4px; font-size: 11px; color: #9c97ab; }
+#page-home #taskList .pill { min-width: 76px; height: 34px; padding: 0 12px; background: rgba(169,107,255,.17); border-color: rgba(169,107,255,.08); color: #c69aff; font-size: 12px; }
+#page-home #taskList .pill.done { background: rgba(89,223,164,.12); color: var(--green); }
+
+#app .invite { background: radial-gradient(ellipse at 50% 0, rgba(132,75,227,.15), transparent 55%), #15141f; }
+#app .invite-icon { background: rgba(169,107,255,.12); border-color: rgba(169,107,255,.18); color: #c499ff; }
+#app .link-box { background: #101019; border-color: rgba(255,255,255,.07); color: #bd8cff; }
+#app .btn.primary { background: linear-gradient(100deg, #8049ef, #a45bfa); box-shadow: 0 9px 24px rgba(125,69,226,.22); }
+#app .btn.tinted { background: rgba(169,107,255,.12); border-color: rgba(169,107,255,.14); color: #c69aff; }
+#app #friendList .item { background: #15141f; }
+#app #friendList .item + .item::before { background: rgba(255,255,255,.07); }
+
+#app .prize { border-color: rgba(255,196,92,.16); background: radial-gradient(ellipse at 95% 0, rgba(255,196,92,.11), transparent 45%), #17151e; }
+#app .prize::before { display: none; }
+#app .prize-amount { color: #ffe0a2; }
+#app .countdown div { background: rgba(255,255,255,.045); border-color: rgba(255,255,255,.06); }
+#app .pod { background: #171621; border-color: rgba(255,255,255,.07); }
+#app .pod.p1 { background: linear-gradient(180deg, rgba(255,196,92,.13), #171621); border-color: rgba(255,196,92,.16); }
+#app .item.me { background: rgba(169,107,255,.1); }
+#app #topList .item { background-color: #15141f; }
+#app .profile { background: radial-gradient(ellipse at 50% 0, rgba(132,75,227,.14), transparent 55%), #15141f; }
+#app .avatar.big { box-shadow: 0 8px 26px rgba(125,69,226,.24); }
+#app .switch input:checked + i { background: #8e55ee; }
+
+@media (max-width: 380px) {
+  #page-home .hero { padding: 19px 16px 16px; }
+  #page-home .stats span { font-size: 9px; }
+  #page-home #taskList .item { gap: 9px; padding: 10px; }
+}
+
+/* Refined to match the supplied dark gaming dashboard reference. */
+html, body {
+  background: #090a0f;
+}
+body {
+  background-color: #090a0f;
+  background-image: linear-gradient(180deg, rgba(7,12,20,.18), rgba(7,12,20,.55)), url("assets/background.png");
+  background-position: center, center;
+  background-size: cover, cover;
+  background-attachment: fixed, fixed;
+  background-repeat: no-repeat, no-repeat;
+}
+.bg {
+  background: none;
+}
+.blob { opacity: .12; }
+
+#app {
+  --label: #f3f1f8;
+  --label2: #a7a5b1;
+  --label3: #74727d;
+  --blue: #a779ff;
+  --green: #57d69c;
+  --orange: #ffc65c;
+  --purple: #8457e8;
+  --glass: #14151b;
+  --glass-strong: #1b1c24;
+  --glass-border: rgba(255,255,255,.075);
+  --glass-shadow: 0 12px 30px rgba(0,0,0,.24);
+  --fill: rgba(255,255,255,.065);
+}
+
+#app .large-title { padding: 15px 4px 14px; }
+#app .large-title .sub { color: #96939f; font-size: 12px; }
+#app .large-title h1 { font-size: 29px; }
+#app .section { margin-top: 21px; font-size: 15px; font-weight: 700; }
+
+#page-home .hero {
+  border-color: rgba(255,255,255,.07);
+  background: linear-gradient(145deg, #191a23, #111218 75%);
+  box-shadow: 0 15px 34px rgba(0,0,0,.25), inset 0 1px rgba(255,255,255,.035);
+}
+#page-home .balance small {
+  background: rgba(255,195,86,.12);
+  color: #ffd47c;
+}
+#page-home .progress i {
+  background: linear-gradient(90deg, #8b5cf6, #bd7dff);
+}
+#page-home .glass-btn,
+#app .btn.primary {
+  background: linear-gradient(100deg, #784be0, #9658f2);
+  box-shadow: 0 8px 20px rgba(117,73,213,.2);
+}
+
+#page-home .js-prize-slot { display: none; }
+#page-home #taskList .item {
+  background: linear-gradient(110deg, #171820, #13141a);
+}
+#page-home #taskList .ico {
+  background: rgba(255,255,255,.07) !important;
+  color: var(--c);
+}
+#page-home #taskList .pill {
+  color: #c29cff;
+  background: rgba(145,91,229,.13);
+}
+#page-home #taskList .pill.done {
+  color: #64dfa7;
+  background: rgba(87,214,156,.12);
+}
+
+#app .invite,
+#app .profile {
+  background: linear-gradient(145deg, #191922, #13141a);
+}
+#app .invite-icon {
+  color: #c8a9ff;
+  background: linear-gradient(145deg, rgba(143,91,226,.2), rgba(143,91,226,.07));
+  border-color: rgba(184,145,255,.16);
+}
+#app .link-box { background: #101116; }
+#app #friendList .item,
+#app #topList .item { background-color: #15161d; }
+#app .pod { background: #171820; }
+#app .pod.p1 {
+  background: linear-gradient(180deg, rgba(255,198,92,.12), #171820);
+}
+#app .prize {
+  background: radial-gradient(ellipse at 95% 0, rgba(255,198,92,.1), transparent 45%), #17171e;
+}
+.cap-grid .emoji-icon { width: 64%; height: 64%; font-size: 36px; }
+.cap-target .emoji-icon { width: 32px; height: 32px; margin: 0 2px; font-size: 30px; }
+
+#page-rules .rules-title { position: relative; padding-top: 54px; }
+#page-rules .rules-back {
+  position: absolute;
+  top: 8px;
+  left: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  color: #c69aff;
+  background: rgba(169,107,255,.1);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+}
+#page-rules .rules-card { padding: 18px; }
+#page-rules #rulesContent {
+  margin: 0;
+  color: var(--label2);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.75;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+#page-rules .rules-retry { width: 100%; margin-top: 16px; }
+#page-rules .rules-retry[hidden] { display: none; }
+
+
+/* ============================================================
+   iOS 27 — Refined Liquid Glass
+   Aniqroq shisha, yuqori kontrast, SF Pro, tizim ranglari,
+   inset-grouped ro'yxatlar, kapsula tugmalar, yangi fon.
+   ============================================================ */
+:root, #app {
+  color-scheme: dark;
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", system-ui, sans-serif;
+  --label: #ffffff;
+  --label2: rgba(235,235,245,.68);
+  --label3: rgba(235,235,245,.34);
+  --sep: rgba(255,255,255,.11);
+  --blue: #0a84ff;
+  --green: #30d158;
+  --orange: #ff9f0a;
+  --red: #ff453a;
+  --purple: #bf5af2;
+  --purple: #bf5af2;
+  --glass: rgba(38,40,54,.46);
+  --glass-strong: rgba(70,74,94,.62);
+  --glass-border: rgba(255,255,255,.16);
+  --glass-shadow: inset 0 1px 0 rgba(255,255,255,.28), inset 0 -1px 0 rgba(255,255,255,.05), inset 0 0 18px rgba(255,255,255,.035), 0 14px 36px rgba(0,0,0,.34);
+  --fill: rgba(120,120,128,.30);
+  --r: 28px;
+  --spring: cubic-bezier(.32,.72,0,1);
+}
+html, body { background: #000 !important; font-family: var(--font); letter-spacing: -.01em; }
+body { background-image: none !important; }
+#app { font-family: var(--font); }
+meta[name=theme-color] { content: #000; }
+
+/* ---------- Orqa fon: iOS 27 jonli devor qog'ozi ---------- */
+.bg {
+  background:
+    radial-gradient(120% 60% at 15% -5%, rgba(10,132,255,.55), transparent 60%),
+    radial-gradient(90% 55% at 100% 30%, rgba(191,90,242,.42), transparent 62%),
+    radial-gradient(110% 60% at 0% 78%, rgba(48,209,200,.30), transparent 60%),
+    radial-gradient(90% 50% at 90% 108%, rgba(255,159,10,.28), transparent 62%),
+    linear-gradient(180deg, #060818 0%, #0a0f26 45%, #070615 100%) !important;
+}
+.blob { filter: blur(70px); opacity: .5; mix-blend-mode: screen; }
+.b1 { background: rgba(10,132,255,.55); }
+.b2 { background: rgba(191,90,242,.45); }
+.b3 { background: rgba(48,209,200,.38); }
+.bg::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(120% 80% at 50% 0%, transparent 40%, rgba(0,0,0,.45) 100%);
+}
+
+/* ---------- Sarlavhalar ---------- */
+#app .large-title { padding: 22px 6px 14px; }
+#app .large-title .sub { font-size: 13px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--label2); }
+#app .large-title h1 { font-size: 34px; font-weight: 700; letter-spacing: -.6px; }
+#app .section { margin: 26px 8px 10px; font-size: 20px; font-weight: 700; letter-spacing: -.3px; color: var(--label); text-transform: none; }
+.count { background: var(--fill); font-size: 13px; font-weight: 600; }
+
+/* ---------- Shisha materiali (hamma kartalar) ---------- */
+#app .card, #app .list, #app .invite, #app .profile, #app .prize,
+#page-home .hero, #app .pod, #app .pod.p1,
+#page-home #taskList {
+  background: linear-gradient(160deg, rgba(255,255,255,.13), rgba(255,255,255,.04) 45%, rgba(255,255,255,.07)), var(--glass) !important;
+  -webkit-backdrop-filter: blur(34px) saturate(190%);
+  backdrop-filter: blur(34px) saturate(190%);
+  border: .5px solid var(--glass-border) !important;
+  border-radius: var(--r) !important;
+  box-shadow: var(--glass-shadow) !important;
+}
+#page-home .hero { padding: 24px 22px 20px; }
+#page-home .hero::before, #app .prize::before { display: none; }
+#app .pod, #app .pod.p1 { border-radius: 24px !important; }
+#app .pod.p1 { background: linear-gradient(180deg, rgba(255,214,10,.22), rgba(255,255,255,.05)), var(--glass) !important; }
+#app .prize-amount { color: #fff; }
+#app .label, #page-home .label { color: var(--label2); font-size: 13px; letter-spacing: .02em; text-transform: none; font-weight: 600; }
+#page-home .balance span { font-weight: 700; letter-spacing: -2px; }
+#page-home .balance small { background: rgba(255,255,255,.14); color: #fff; font-weight: 600; }
+#page-home .level-row { color: var(--label2); }
+#page-home .stats { border-top: .5px solid var(--sep); }
+#page-home .stats > div + div { border-left: .5px solid var(--sep); }
+#page-home .stats span { color: var(--label2); font-size: 11px; }
+
+/* ---------- Progress ---------- */
+#app .progress, #page-home .progress, .milestone-progress { background: rgba(120,120,128,.32); }
+#app .progress i, #page-home .progress i { background: linear-gradient(90deg, #0a84ff, #64d2ff); box-shadow: 0 0 12px rgba(10,132,255,.5); }
+.milestone-progress i { background: linear-gradient(90deg, #ff9f0a, #ffd60a); }
+
+/* ---------- Tugmalar: kapsula + shisha yaltirash ---------- */
+#app .btn, #page-home .glass-btn { border-radius: 999px !important; height: 54px; font-weight: 600; letter-spacing: -.01em; transition: transform .35s var(--spring), opacity .2s; }
+#app .btn:active { transform: scale(.95); opacity: .9; }
+#page-home .glass-btn, #app .btn.primary {
+  background: linear-gradient(180deg, rgba(255,255,255,.30), rgba(255,255,255,0) 55%), #0a84ff !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.5), inset 0 -1px 0 rgba(0,0,0,.12), 0 10px 26px rgba(10,132,255,.42) !important;
+  color: #fff;
+}
+#app .btn.tinted {
+  background: linear-gradient(180deg, rgba(255,255,255,.14), rgba(255,255,255,.04)), rgba(120,120,128,.28) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(180%); backdrop-filter: blur(20px) saturate(180%);
+  border: .5px solid var(--glass-border); color: #409cff;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.25);
+}
+.pill, #page-home #taskList .pill {
+  height: 34px; border-radius: 999px; font-weight: 600; font-size: 13px;
+  background: rgba(10,132,255,.22); color: #5ac8ff; border: .5px solid rgba(90,200,255,.25);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.16);
+}
+.pill.done, #page-home #taskList .pill.done { background: rgba(48,209,88,.20); color: #30d158; border-color: rgba(48,209,88,.28); }
+
+/* ---------- Inset-grouped ro'yxatlar ---------- */
+#page-home #taskList { display: block; overflow: hidden !important; }
+#page-home #taskList .item, #app #friendList .item, #app #topList .item, .item {
+  background: transparent !important; border: 0 !important; border-radius: 0 !important;
+  min-height: 64px; padding: 12px 16px; transition: background .25s var(--spring);
+}
+#page-home #taskList .item:active, .item:active { background: rgba(255,255,255,.10) !important; }
+#page-home #taskList .item + .item::before, .item + .item::before, #app #friendList .item + .item::before, #app #topList .item + .item::before {
+  display: block; content: ""; position: absolute; top: 0; left: 72px; right: 0; height: .5px; background: var(--sep);
+}
+#app .item.me, #app #topList .item.me { background: rgba(10,132,255,.20) !important; }
+.txt b { font-weight: 600; letter-spacing: -.01em; }
+.txt span, #page-home #taskList .txt span { color: var(--label2); font-size: 13px; }
+#page-home #taskList .txt b { font-size: 16px; }
+.chev { color: var(--label3); }
+
+/* ---------- Ikonka plitkalari (iOS ilova ikonkalari kabi) ---------- */
+.ico, #page-home #taskList .ico {
+  width: 44px; height: 44px; border-radius: 12px !important; color: #fff;
+  background-color: var(--c, #0a84ff) !important;
+  background-image: linear-gradient(180deg, rgba(255,255,255,.34), rgba(255,255,255,0) 60%) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.45), inset 0 -1px 0 rgba(0,0,0,.14), 0 3px 8px rgba(0,0,0,.28) !important;
+}
+#app .invite-icon, .milestone-icon, .donation-icon, .promo-icon {
+  background: linear-gradient(180deg, rgba(255,255,255,.22), rgba(255,255,255,.04)), rgba(10,132,255,.35) !important;
+  border: .5px solid rgba(255,255,255,.22); color: #fff; box-shadow: inset 0 1px 0 rgba(255,255,255,.35);
+}
+#app .invite-icon { border-radius: 26px; }
+.milestone-icon, .donation-icon { background-color: rgba(255,159,10,.4) !important; }
+
+/* ---------- Maydonlar ---------- */
+#app .link-box, .donation-input, .task-proof, #app .countdown div, .profile-sheet__stat {
+  background: rgba(120,120,128,.26) !important; border: .5px solid rgba(255,255,255,.10) !important; border-radius: 16px;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,.22);
+}
+#app .link-box { color: #64d2ff; }
+.donation-input:focus { border-color: rgba(10,132,255,.9) !important; box-shadow: 0 0 0 4px rgba(10,132,255,.25); }
+#app .countdown b { font-weight: 700; }
+
+/* ---------- Segmented control ---------- */
+.segmented { background: rgba(120,120,128,.30); border-radius: 999px; padding: 3px; -webkit-backdrop-filter: blur(24px); backdrop-filter: blur(24px); border: .5px solid rgba(255,255,255,.1); }
+.thumb { border-radius: 999px; background: linear-gradient(180deg, rgba(255,255,255,.34), rgba(255,255,255,.18)); box-shadow: inset 0 1px 0 rgba(255,255,255,.5), 0 3px 10px rgba(0,0,0,.28); }
+
+/* ---------- Switch ---------- */
+#app .switch input:checked + i, .switch input:checked + i { background: #30d158; }
+
+/* ---------- Pastki Tab Bar: suzuvchi Liquid Glass ---------- */
+.tabbar {
+  width: min(calc(100% - 40px), 380px); height: 66px; border-radius: 999px; bottom: calc(var(--safe-b) + 12px);
+  background: linear-gradient(180deg, rgba(255,255,255,.16), rgba(255,255,255,.05)), rgba(30,32,46,.42) !important;
+  -webkit-backdrop-filter: blur(36px) saturate(220%); backdrop-filter: blur(36px) saturate(220%);
+  border: .5px solid rgba(255,255,255,.26);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.5), inset 0 -1px 0 rgba(255,255,255,.08), inset 0 0 22px rgba(255,255,255,.07), 0 18px 44px rgba(0,0,0,.5);
+}
+.tabbar button { color: rgba(235,235,245,.62); }
+.tabbar button.on { color: #0a84ff; }
+.tabbar button.on svg { fill-opacity: .3; }
+.tabbar span { font-size: 10px; font-weight: 600; letter-spacing: .01em; }
+.tab-thumb {
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(255,255,255,.26), rgba(255,255,255,.09));
+  border: .5px solid rgba(255,255,255,.3);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.5), 0 4px 14px rgba(0,0,0,.25);
+}
+
+/* ---------- Profil oynasi (sheet) ---------- */
+.profile-sheet__backdrop { background: rgba(0,0,0,.45); }
+.profile-sheet__panel {
+  background: linear-gradient(180deg, rgba(255,255,255,.14), rgba(255,255,255,.04)), rgba(26,28,42,.62) !important;
+  -webkit-backdrop-filter: blur(44px) saturate(200%); backdrop-filter: blur(44px) saturate(200%);
+  border: .5px solid rgba(255,255,255,.2); border-bottom: 0; border-radius: 40px 40px 0 0;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.4), 0 -20px 60px rgba(0,0,0,.45);
+  transition: transform .45s var(--spring);
+}
+.profile-sheet__handle { background: rgba(255,255,255,.35); }
+.profile-sheet__close { background: rgba(120,120,128,.36); color: #fff; -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); }
+
+/* ---------- Captcha, toast ---------- */
+.captcha { background: rgba(4,6,20,.5); }
+.cap-card {
+  background: linear-gradient(160deg, rgba(255,255,255,.16), rgba(255,255,255,.04)), rgba(30,32,48,.6) !important;
+  -webkit-backdrop-filter: blur(40px) saturate(200%); backdrop-filter: blur(40px) saturate(200%);
+  border: .5px solid rgba(255,255,255,.22); border-radius: 38px; box-shadow: var(--glass-shadow);
+}
+.cap-target { color: #64d2ff; }
+.cap-grid button { background: rgba(120,120,128,.26); border: .5px solid rgba(255,255,255,.12); border-radius: 24px; box-shadow: inset 0 1px 0 rgba(255,255,255,.18); }
+.cap-grid button:active { background: rgba(10,132,255,.35); }
+.cap-dots i.on { background: #30d158; }
+.toast {
+  background: linear-gradient(180deg, rgba(255,255,255,.18), rgba(255,255,255,.06)), rgba(30,32,46,.6) !important;
+  -webkit-backdrop-filter: blur(30px) saturate(200%); backdrop-filter: blur(30px) saturate(200%);
+  border: .5px solid rgba(255,255,255,.25); border-radius: 999px; box-shadow: inset 0 1px 0 rgba(255,255,255,.4), 0 12px 32px rgba(0,0,0,.4);
+}
+
+/* ---------- Boshqa ---------- */
+.avatar.big, #app .avatar.big { box-shadow: 0 10px 30px rgba(10,132,255,.35), inset 0 1px 0 rgba(255,255,255,.4); }
+#page-rules .rules-back { border: .5px solid var(--glass-border); border-radius: 999px; color: #5ac8ff; background: rgba(120,120,128,.26); }
+.page { animation-duration: .55s; animation-timing-function: var(--spring); }
+
+/* Shisha ishlamasa yoki "Reduce Transparency" yoqilgan bo'lsa — o'qiladigan zich fon */
+@media (prefers-reduced-transparency: reduce) {
+  #app .card, #app .list, #app .invite, #app .profile, #app .prize, #page-home .hero, #app .pod, #page-home #taskList, .tabbar, .cap-card, .profile-sheet__panel { background: #1c1c1e !important; -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
+
+/* ============================================================
+   Telegram uslubidagi profil sarlavhasi
+   (rangli gradient, naqshli fon, katta avatar, teg va pill)
+   ============================================================ */
+.tgp {
+  --ph: 140;
+  position: relative; overflow: hidden; text-align: center; color: #fff;
+  padding: 34px 20px 26px;
+  background:
+    radial-gradient(110% 80% at 50% 0%, hsl(var(--ph) 42% 56% / .95), transparent 70%),
+    linear-gradient(180deg, hsl(var(--ph) 38% 42%), hsl(var(--ph) 40% 28%));
+}
+#app .profile.tgp {
+  background:
+    radial-gradient(110% 80% at 50% 0%, hsl(var(--ph) 42% 56% / .95), transparent 70%),
+    linear-gradient(180deg, hsl(var(--ph) 38% 42%), hsl(var(--ph) 40% 28%)) !important;
+  border-radius: 34px !important; padding: 36px 20px 26px;
+}
+.tgp-pattern {
+  position: absolute; inset: 0; pointer-events: none; opacity: .22;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='72' viewBox='0 0 72 72' fill='none' stroke='%23fff' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M18 8l2.6 5.4 5.9.8-4.3 4.1 1 5.8L18 21.4 12.8 24l1-5.8-4.3-4.1 5.9-.8z'/%3E%3Ccircle cx='54' cy='30' r='6'/%3E%3Cpath d='M54 27v6M51.5 30h5'/%3E%3Cpath d='M20 52l5 5-5 5-5-5z'/%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='72' viewBox='0 0 72 72' fill='none' stroke='%23fff' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M18 8l2.6 5.4 5.9.8-4.3 4.1 1 5.8L18 21.4 12.8 24l1-5.8-4.3-4.1 5.9-.8z'/%3E%3Ccircle cx='54' cy='30' r='6'/%3E%3Cpath d='M54 27v6M51.5 30h5'/%3E%3Cpath d='M20 52l5 5-5 5-5-5z'/%3E%3C/svg%3E");
+  background-size: 72px 72px; background-position: 0 0, 36px 36px;
+  -webkit-mask-image: radial-gradient(circle at 50% 36%, transparent 0, transparent 70px, #000 190px);
+  mask-image: radial-gradient(circle at 50% 36%, transparent 0, transparent 70px, #000 190px);
+}
+.tgp > * { position: relative; }
+.tgp > .tgp-pattern { position: absolute; }
+.tgp-avatar-wrap { position: relative; width: 112px; margin: 0 auto 14px; }
+.tgp .avatar, #app .tgp .avatar.big, .tgp .profile-sheet__avatar {
+  width: 112px; height: 112px; margin: 0; font-size: 44px;
+  border: 3px solid rgba(255,255,255,.4);
+  box-shadow: 0 12px 32px rgba(0,0,0,.32), 0 0 0 6px rgba(255,255,255,.08) !important;
+}
+.tgp .avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.tgp-tag {
+  position: absolute; right: -44px; bottom: 2px; z-index: 2; white-space: nowrap;
+  padding: 5px 11px; border-radius: 999px; font-size: 12px; font-weight: 600; letter-spacing: 0;
+  background: hsl(var(--ph) 36% 24% / .78); color: #fff;
+  -webkit-backdrop-filter: blur(14px) saturate(180%); backdrop-filter: blur(14px) saturate(180%);
+  border: .5px solid rgba(255,255,255,.32); box-shadow: inset 0 1px 0 rgba(255,255,255,.3), 0 4px 12px rgba(0,0,0,.25);
+}
+.tgp h2, .tgp h3, #app .profile.tgp h3 { margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -.4px; color: #fff; text-shadow: 0 1px 8px rgba(0,0,0,.2); }
+.tgp p, #app .profile.tgp p { margin: 5px 0 0; color: rgba(255,255,255,.82); font-size: 15px; }
+.tgp .profile-sheet__username { margin: 5px 0 0; }
+.tgp-status { display: flex; align-items: center; justify-content: center; gap: 7px; }
+.tgp-dot { width: 8px; height: 8px; border-radius: 50%; background: #7dff9b; box-shadow: 0 0 0 3px rgba(125,255,155,.25); }
+.tgp-pill {
+  display: inline-flex; align-items: center; gap: 6px; margin-top: 14px; padding: 6px 14px; border-radius: 999px;
+  font-size: 13px; font-weight: 600; color: #fff; font-variant-numeric: tabular-nums;
+  background: hsl(var(--ph) 36% 22% / .55);
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+  border: .5px solid rgba(255,255,255,.25); box-shadow: inset 0 1px 0 rgba(255,255,255,.22);
+}
+.tgp-pill::before { content: ""; width: 12px; height: 12px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff3b0, #ffc533 60%, #e69a00); box-shadow: 0 0 6px rgba(255,197,51,.6); }
+
+/* Sheet: sarlavha butun kenglikda, statistika pastda */
+.profile-sheet__panel { padding: 0 0 calc(22px + var(--safe-b)) !important; }
+.profile-sheet__handle { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); margin: 0; z-index: 4; background: rgba(255,255,255,.55); }
+.profile-sheet__close { z-index: 4; top: 14px; right: 14px; background: rgba(0,0,0,.25); }
+.profile-sheet__content .tgp { padding-top: 48px; }
+.profile-sheet__stats { padding: 14px 16px 0; }
+  </style>
+</head>
+<body>
+  <div class="loading-intro" id="loadingIntro" role="status" aria-live="polite">
+    <div class="loading-intro__bg" aria-hidden="true"><i></i><i></i><i></i></div>
+    <main class="loading-intro__content">
+      <div class="loading-intro__orb" aria-hidden="true">
+        <svg viewBox="0 0 56 56">
+          <circle class="loading-intro__track" cx="28" cy="28" r="22"></circle>
+          <circle class="loading-intro__ring" cx="28" cy="28" r="22"></circle>
+        </svg>
+      </div>
+      <h1>Viral</h1>
+      <p>Mini-ilova tayyorlanmoqda</p>
+      <div class="loading-intro__bar" aria-hidden="true"><b id="loadingProgress"></b></div>
+    </main>
+  </div>
+  <script>
+    (function () {
+      var telegram = window.Telegram && window.Telegram.WebApp;
+      if (telegram) {
+        try {
+          telegram.ready();
+          telegram.expand();
+          if (telegram.setHeaderColor) telegram.setHeaderColor('bg_color');
+        } catch (error) {
+          console.warn('Telegram loading screen setup failed:', error);
+        }
+      }
+
+      var intro = document.getElementById('loadingIntro');
+      var fill = document.getElementById('loadingProgress');
+      var progress = 0;
+      var finished = false;
+      var timer = window.setInterval(function () {
+        progress += (90 - progress) * 0.12;
+        fill.style.width = progress + '%';
+      }, 180);
+
+      window.finishLoadingIntro = function () {
+        if (finished) return Promise.resolve();
+        finished = true;
+        window.clearInterval(timer);
+        fill.style.width = '100%';
+        intro.classList.add('is-done');
+        if (telegram && telegram.HapticFeedback) {
+          try {
+            telegram.HapticFeedback.notificationOccurred('success');
+          } catch (error) {
+            console.warn('Telegram loading haptic failed:', error);
+          }
+        }
+        return new Promise(function (resolve) {
+          window.setTimeout(function () {
+            intro.remove();
+            resolve();
+          }, 480);
+        });
+      };
+    })();
+  </script>
+  <div class="bg" aria-hidden="true"><i class="blob b1"></i><i class="blob b2"></i><i class="blob b3"></i></div>
+
+  <main id="app">
+    <!-- BOSH SAHIFA -->
+    <section class="page active" id="page-home">
+      <header class="large-title">
+        <p class="sub" id="greeting">Salom</p>
+        <h1>Bosh sahifa</h1>
+      </header>
+
+      <div class="card hero glass">
+        <p class="label">Balansingiz</p>
+        <div class="balance"><span id="balance">0</span><small>coin</small></div>
+        <div class="level">
+          <div class="level-row"><span class="level-title"><span class="emoji-icon" id="levelBadge" data-emoji="🏅" aria-hidden="true" hidden></span><span id="levelName">1-daraja</span></span><span id="levelNext">0 / 100</span></div>
+          <div class="progress"><i id="levelBar"></i></div>
+        </div>
+        <div class="stats">
+          <div><b id="statFriends">0</b><span>Do'stlar</span></div>
+          <div><b id="statRank">#–</b><span>Reyting</span></div>
+          <div><b id="statStreak">0</b><span>Kun ketma-ket</span></div>
+        </div>
+      </div>
+
+      <div class="card promo-card glass" id="promoCard">
+        <div class="donation-heading">
+          <span class="donation-icon promo-icon"><span class="emoji-icon" data-emoji="🎁" aria-hidden="true"></span></span>
+          <div>
+            <h2>Promo-kod</h2>
+            <p>Kodni kiriting va coin mukofotini oling.</p>
+          </div>
+        </div>
+        <label class="donation-label" for="promoCode">Promo-kod</label>
+        <input id="promoCode" class="donation-input" type="text" inputmode="text" autocomplete="off" maxlength="32" placeholder="Masalan, YANGI2026" />
+        <button class="btn primary glass-btn" id="redeemPromoBtn" type="button">
+          <span class="emoji-icon" data-emoji="🎁" aria-hidden="true"></span> Kodni ishlatish
+        </button>
+      </div>
+
+      <div class="js-prize-slot"></div>
+
+      <button class="btn primary glass-btn" id="dailyBtn"><span class="emoji-icon" data-emoji="🎁" aria-hidden="true"></span> Kunlik bonusni olish</button>
+
+      <h2 class="section">Topshiriqlar</h2>
+      <div class="list glass" id="taskList"></div>
+    </section>
+
+    <!-- DO'STLAR -->
+    <section class="page" id="page-friends">
+      <header class="large-title">
+        <p class="sub">Birga o'sing</p>
+        <h1>Do'stlar</h1>
+      </header>
+
+      <div class="card invite glass">
+        <div class="invite-icon"><span class="emoji-icon" data-emoji="🚀" aria-hidden="true"></span></div>
+        <h3>Do'st taklif qiling,<br>coin yutib oling</h3>
+        <p>Har bir do'stingiz uchun <b>+<span id="refReward">50</span> coin</b>, do'stingizga esa <b>+<span id="refBonus">25</span> coin</b> sovg'a.</p>
+        <div class="link-box" id="linkBox"><span id="refLink">…</span></div>
+        <div class="row">
+          <button class="btn primary" id="shareBtn">Ulashish</button>
+          <button class="btn tinted" id="copyBtn">Nusxa olish</button>
+        </div>
+      </div>
+
+      <div class="card referral-milestone glass" id="referralGiftProgress">
+        <div class="milestone-heading">
+          <span class="milestone-icon"><span class="emoji-icon" data-emoji="🎁" aria-hidden="true"></span></span>
+          <div>
+            <h3>Har 10 ta taklifda gift!</h3>
+            <p id="referralGiftDescription">Do‘stlaringiz tasdiqlangach, gift yutib oling.</p>
+          </div>
+        </div>
+        <div class="milestone-progress-copy">
+          <span id="referralGiftCount">0 / 10 ta tasdiqlangan do‘st</span>
+          <span id="referralGiftRemaining">Yana 10 ta qoldi</span>
+        </div>
+        <div class="milestone-progress" role="progressbar" aria-label="Gift uchun referral progressi" aria-valuemin="0" aria-valuemax="10" aria-valuenow="0">
+          <i id="referralGiftBar"></i>
+        </div>
+      </div>
+
+      <h2 class="section">Taklif qilganlar <span class="count" id="invCount">0</span></h2>
+      <div class="list glass" id="friendList"></div>
+    </section>
+
+    <!-- REYTING -->
+    <section class="page" id="page-top">
+      <header class="large-title">
+        <p class="sub">Eng faollar</p>
+        <h1>Reyting</h1>
+      </header>
+
+      <div class="js-prize-slot" style="margin-bottom:18px"></div>
+
+      <div class="segmented glass" id="seg">
+        <i class="thumb"></i>
+        <button class="on" data-p="week">Hafta</button>
+        <button data-p="all">Hammasi</button>
+      </div>
+
+      <div class="podium" id="podium"></div>
+      <div class="list glass" id="topList"></div>
+
+      <h2 class="section">Top donaterlar</h2>
+      <div class="list glass" id="topDonors" aria-live="polite">
+        <div class="empty">Donaterlar ro‘yxati yuklanmoqda…</div>
+      </div>
+    </section>
+
+    <!-- PROFIL -->
+    <section class="page" id="page-me">
+      <header class="large-title">
+        <p class="sub">Hisob</p>
+        <h1>Profil</h1>
+      </header>
+
+      <div class="card profile glass tgp" id="meCard">
+        <i class="tgp-pattern" aria-hidden="true"></i>
+        <div class="tgp-avatar-wrap">
+          <div class="avatar big" id="meAvatar">A</div>
+          <span class="tgp-tag" id="meTag">ID</span>
+        </div>
+        <h3 id="meName">Foydalanuvchi</h3>
+        <p class="tgp-status"><i class="tgp-dot"></i>online</p>
+        <p id="meUser">@username</p>
+        <span class="tgp-pill" id="mePill">0 coin</span>
+      </div>
+
+      <div class="card donation glass">
+        <div class="donation-heading">
+          <span class="donation-icon"><span class="emoji-icon" data-emoji="⭐" aria-hidden="true"></span></span>
+          <div>
+            <h2>Botni qo‘llab-quvvatlang</h2>
+            <p>Istalgan miqdorda Telegram Stars donat qiling.</p>
+          </div>
+        </div>
+        <label class="donation-label" for="donationAmount">Donat miqdori (Stars)</label>
+        <input id="donationAmount" class="donation-input" type="number" inputmode="numeric" min="1" max="10000000" step="1" value="10" />
+        <label class="donation-label" for="donationMessage">Donat uchun xabar</label>
+        <textarea id="donationMessage" class="donation-input donation-message" maxlength="500" rows="3" placeholder="Botga qo‘llab-quvvatlovchi xabaringizni yozing…" required></textarea>
+        <small class="donation-hint">Xabar va Telegram profilingiz ma’lumotlari adminga yuboriladi.</small>
+        <button class="btn primary glass-btn" id="donateBtn">
+          <span class="emoji-icon" data-emoji="⭐" aria-hidden="true"></span> Donat qilish
+        </button>
+      </div>
+
+      <h2 class="section">Sozlamalar</h2>
+      <div class="list glass">
+        <div class="item">
+          <span class="ico" style="--c:#ff9f0a"><span class="emoji-icon" data-emoji="📳" aria-hidden="true"></span></span>
+          <div class="txt"><b>Titrash (haptika)</b></div>
+          <label class="switch"><input type="checkbox" id="hapticToggle" checked /><i></i></label>
+        </div>
+        <div class="item" id="rulesBtn">
+          <span class="ico" style="--c:#0a84ff"><span class="emoji-icon" data-emoji="📖" aria-hidden="true"></span></span>
+          <div class="txt"><b>Qoidalar</b></div>
+          <span class="chev">›</span>
+        </div>
+        <div class="item" id="supportBtn">
+          <span class="ico" style="--c:#30d158"><span class="emoji-icon" data-emoji="💬" aria-hidden="true"></span></span>
+          <div class="txt"><b>Yordam</b></div>
+          <span class="chev">›</span>
+        </div>
+      </div>
+      <p class="foot">Versiya 1.0 · Liquid Glass</p>
+    </section>
+
+    <!-- QOIDALAR -->
+    <section class="page" id="page-rules">
+      <header class="large-title rules-title">
+        <button class="rules-back" id="rulesBack" type="button" aria-label="Profilga qaytish">‹ Profil</button>
+        <p class="sub">Ma’lumot</p>
+        <h1>FAQ va qoidalar</h1>
+      </header>
+      <div class="card rules-card glass" aria-live="polite">
+        <pre id="rulesContent">Qoidalar yuklanmoqda…</pre>
+        <button class="btn tinted rules-retry" id="rulesRetry" type="button" hidden>Qayta yuklash</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- Suzuvchi shisha tab-bar -->
+  <nav class="tabbar glass" id="tabbar">
+    <i class="tab-thumb"></i>
+    <button data-t="home" class="on">
+      <svg viewBox="0 0 24 24"><path d="M3 11l9-7.5L21 11v8.5a1.5 1.5 0 0 1-1.5 1.5H15v-6H9v6H4.5A1.5 1.5 0 0 1 3 19.5z"/></svg><span>Bosh</span>
+    </button>
+    <button data-t="friends">
+      <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.4-3.6 3-5.5 6.5-5.5s6.1 1.9 6.5 5.5"/><circle cx="17.5" cy="9" r="2.6"/><path d="M17 14.4c2.6.1 4.2 1.6 4.5 4.6"/></svg><span>Do'stlar</span>
+    </button>
+    <button data-t="top">
+      <svg viewBox="0 0 24 24"><path d="M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M7 6H4v1.5A3.5 3.5 0 0 0 7.5 11M17 6h3v1.5a3.5 3.5 0 0 1-3.5 3.5M12 14v4M8.5 20h7"/></svg><span>Reyting</span>
+    </button>
+    <button data-t="me">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20.5c.6-4 3.6-6 8-6s7.4 2 8 6"/></svg><span>Profil</span>
+    </button>
+  </nav>
+
+  <div class="profile-sheet" id="profileSheet" hidden aria-hidden="true">
+    <button class="profile-sheet__backdrop" id="profileSheetBackdrop" type="button" aria-label="Profil oynasini yopish"></button>
+    <section class="profile-sheet__panel" role="dialog" aria-modal="true" aria-label="Foydalanuvchi profili" tabindex="-1">
+      <div class="profile-sheet__handle" aria-hidden="true"></div>
+      <button class="profile-sheet__close" id="profileSheetClose" type="button" aria-label="Yopish">×</button>
+      <div class="profile-sheet__content" id="profileSheetContent" aria-live="polite">
+        <div class="empty">Profil yuklanmoqda…</div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Captcha: birinchi ochilganda -->
+  <div class="captcha" id="captcha" hidden>
+    <div class="cap-card glass">
+      <div class="cap-ico"><span class="emoji-icon" data-emoji="🛡️" aria-hidden="true"></span></div>
+      <h2>Haqiqiy odammisiz?</h2>
+      <p id="capRef" class="cap-ref" hidden>Do'stingiz sizni taklif qildi. Tasdiqlang, ikkalangiz ham mukofot olasiz.</p>
+      <p class="cap-q" id="capQ">…</p>
+      <div class="cap-target" id="capTarget">…</div>
+      <div class="cap-grid" id="capGrid"></div>
+      <div class="cap-dots" id="capDots"></div>
+      <small id="capMsg"></small>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.12.2/lottie.min.js"></script>
+  <script>
+/* ============================================================
+   Viral Mini App — frontend
+   Hozircha DEMO ma'lumotlar bilan ishlaydi.
+   API productionda Telegram Web App imzosi bilan tasdiqlanadi.
+   ============================================================ */
+const CONFIG = {
+  BOT_USERNAME: 'sizning_bot',   // @ belgisiz bot username
+  API_URL: '/api',
+  REF_REWARD: 50,
+  REF_BONUS: 25,
+  WEEKLY_PRIZE: 100000,          // so'm — har yakshanba eng ko'p ball yig'ganga
+  LEVELS: [0, 100, 300, 700, 1500, 3000, 6000],
+};
+
+const tg = window.Telegram?.WebApp;
+const LIVE_MODE = Boolean(tg?.initData && CONFIG.API_URL);
+function getDeviceId() {
+  const key = 'viral_device_id';
+  try {
+    let id = localStorage.getItem(key);
+    if (!id) {
+      id = typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : [...crypto.getRandomValues(new Uint8Array(24))]
+          .map((byte) => byte.toString(16).padStart(2, '0')).join('');
+      localStorage.setItem(key, id);
+    }
+    return id;
+  } catch {
+    return [...crypto.getRandomValues(new Uint8Array(24))]
+      .map((byte) => byte.toString(16).padStart(2, '0')).join('');
+  }
+}
+const DEVICE_ID = getDeviceId();
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const ANIMATION_FILES = {
+  '🌙': 'CAACAgEAAxUAAWrncguskyqISIUj84Nn4l1FFYEEAAK6BAACOUQ5RJ7IoKaWrlJ6PQQ.json',
+  '📣': 'CAACAgIAAxUAAWri0idH2Nk1MRr-GEz_IeGP7mKKAAKPHAACVToAAUm5x1GN_thJkT0E.json',
+  '📖': 'CAACAgIAAxUAAWri0if1NZaHjJwO6tPtFQujC160AAJ_HQACzlX5SLos2yopOdbTPQQ.json',
+  '🦆': 'CAACAgIAAxUAAWrjVHQFg3nZP-usukJH3R5OfYIfAAJcJQACnSTAScv4eQRkW1clPQQ.json',
+  '🦊': 'CAACAgIAAxUAAWrkatU6dKmIWg3al99a_5ecZickAAKkJwACTitRSUHlRvShsD1mPQQ.json',
+  '🐧': 'CAACAgIAAxUAAWrkatUae97hmIQ4jGgSGpDZpcNsAAIgJQACVwVoSmBlxpLNfog4PQQ.json',
+  '🐰': 'CAACAgIAAxUAAWrkatUeTFCM_mxUk4ymvMkdxSYgAAKUKwACzxIhS16Dsrzf9vhePQQ.json',
+  '🚀': 'CAACAgIAAxUAAWrkatUk6WsQFwL1vGkuSX0PUmGRAALLGwAC14mRSzvrMNfF90DPPQQ.json',
+  '🎈': 'CAACAgIAAxUAAWrkatUq8ngePEP3cbumCNBQv0WzAAJMGwACEcbwS4-d4PPmE6LxPQQ.json',
+  '🐵': 'CAACAgIAAxUAAWrkatUVLoBOOlo0ck9cRW1QAdUsAAK4HgACPS3ZSyxJYEREl78JPQQ.json',
+  '🐱': 'CAACAgIAAxUAAWrkatUVv_8qtFc9PsAZdRXdBCBRAAJzIgACrFVQSQv7Un3E5fnRPQQ.json',
+  '🦁': 'CAACAgIAAxUAAWrkatUyW_spp_ikUDiMKCCsY9FkAAIEIQACenPpSqxV0aX5q0qUPQQ.json',
+  '🍌': 'CAACAgIAAxUAAWrkatV4JM9f1VuQWJiNFk4ZB1yyAALRHQACd4DQShe1Ku-wRnGXPQQ.json',
+  '🐷': 'CAACAgIAAxUAAWrkatVbzBxrkVwjJRCuLpamKeIGAALDIgACErdYSo3fRqwn79ZfPQQ.json',
+  '🐮': 'CAACAgIAAxUAAWrkatVdDS9MDYXQYWwvkUzrit1lAAKhVwACejnYSjrlUNNG-r9fPQQ.json',
+  '🐸': 'CAACAgIAAxUAAWrkatVDROgVvjMAAcXj82k6UOTWFQACoycAAgEIGEucqWeeJqOq5j0E.json',
+  '🚗': 'CAACAgIAAxUAAWrkatVf2MIEjiPVheX1A9shWG-OAALgGAAC09SQSy_J3SbEAXYZPQQ.json',
+  '🐝': 'CAACAgIAAxUAAWrkatVhpX2V3u61T9vhljAzLbAZAAJoJwAC4IIZS8G7gG_BkEfcPQQ.json',
+  '🦋': 'CAACAgIAAxUAAWrkatVi8Ijflog5XbltFUZBL2knAAKtGAACft6QS4KaEwABzy5KqT0E.json',
+  '🎁': 'gift.json',
+  '🏅': 'level-badge.json',
+  '🐴': 'CAACAgIAAxUAAWrkatVqRN4aIrRXWrk2Js4G-qZOAAJWJQACEMgYSlAlJtMfL4jUPQQ.json',
+  '🍓': 'CAACAgIAAxUAAWrkatVVl2Tf2qK5a5bbVlXMULX0AAKEHAACgjbpS5BZvCO3vc7GPQQ.json',
+  '🐔': 'CAACAgIAAxUAAWrkatVXTY2zUCFzTvz9Lixpfhu5AAIlKgACTLRRSd0YIMfPUIGaPQQ.json',
+  '🐙': 'CAACAgIAAxUAAWrkatW1-Gv1ght9PzoKR8e2BY0OAAKZJAACggVJSvpbD8ofzdpIPQQ.json',
+  '🐻': 'CAACAgIAAxUAAWrkatW2_lWpLu7Ko2RJDag6mIwbAALVJgACGVtQSb7EiGC73VqNPQQ.json',
+  '🐼': 'CAACAgIAAxUAAWrkatW93eJzuGoqkTpJ38zrn4sNAAI3IgACwJlIScEoiyZU0nTSPQQ.json',
+  '🐢': 'CAACAgIAAxUAAWrkatWBTv4yICNCPD5UfgKmuGXiAAIFKwAC-uhBSoLJ3uOIiTbGPQQ.json',
+  '🐘': 'CAACAgIAAxUAAWrkatWKiqXn543iprjDxeFJ_LQ7AAJdJQACROSBSJBIQody3iWKPQQ.json',
+  '🐟': 'CAACAgIAAxUAAWrkatWpLTOXfowC-1giyV5Ste-uAAIsHAAC2nOxSuelncmnN9HAPQQ.json',
+  '🐬': 'CAACAgIAAxUAAWrkatWQyXfwomuvBDUzNYWb4Q9SAAJgLwAC999pSuqV520vq0nvPQQ.json',
+  '🍉': 'CAACAgIAAxUAAWrkatX0fPcFgh20-IkuHsOJg-o0AALFMgACElegSZje8QAB8o3-zz0E.json',
+  '🌳': 'CAACAgIAAxUAAWrkatXeM1JnQNCox0PH21F_aHSQAAKkGwACu_-hS5CtP6gu67oaPQQ.json',
+  '🐶': 'CAACAgIAAxUAAWrkatXiA5I5nhzKskYLKySIu3fMAAL1KQACmg9RSdVT_mX7LMVIPQQ.json',
+  '🍒': 'CAACAgIAAxUAAWrkatXntVp3Z6G8XOCCOmiAoFupAAJlXgAC16oIS3to2Uh9RezEPQQ.json',
+  '⭐': 'CAACAgIAAxUAAWrkatXx8z4B1Dl9vfIx5u76C3NBAAKlGgACUWZwS3E_duH6N7YWPQQ.json',
+  '🥇': 'gold-medal.json',
+  '🥈': 'CAACAgIAAxUAAWrkzgOgn0esJDgb-69JMIdz69q3AALZRwAC0lqYSwGDRJICAcXxPQQ.json',
+  '🏠': 'CAACAgIAAxUAAWrkzgOOcSt9GaL2rrkFlLE6GT4MAAJcUgACxaQpS1OP2qTvqMSVPQQ.json',
+  '🥉': 'CAACAgIAAxUAAWrkzgPCo1Tv2e7hR22MmoAYExreAAKhVAACNyewS0vOrkgGsdXHPQQ.json',
+  '💬': 'CAACAgIAAxUAAWrm1VyokKd3DTKtNJqt_LC9ycEHAAIRbwACkebYSi9oj76BzO2WPQQ.json',
+  '🛡️': 'CAACAgIAAxUAAWrvL-QPKWkotEvfOVY--DexLfxxAAIwhAACKHyRSOOsW9SgVf4SPQQ.json',
+  '⚽': 'CAACAgIAAxUAAWrvL-SJfHZhX_zZmDtGisHhEg0fAALClwACrCmYSgiVq-j2nfcwPQQ.json',
+  '✅': 'CAACAgIAAxUAAWrvL-Snb669XWC2AAHXMvUgCQABmM8AAjFtAALTmtlKMbmvOMDS58A9BA.json',
+  '🏆': 'CAACAgIAAxUAAWrvL-TJkTtDnn3ZkrbP0wteWD4OAAJbmgACsPVRSRpTdnh-PQTPPQQ.json',
+  '👥': 'CAACAgQAAxUAAWrvL-R0d6df0hmYHgKZOE3cUQ6IAAKvHgAC2g3oUhbM8xIXIfGKPQQ.json',
+  '🔑': 'CAACAgQAAxUAAWrvL-TXT0Q8op7jW-ABc212O8b8AAKRIAACburoUoHX2B9Z4yhAPQQ.json',
+  '📳': 'vibrate.json',
+  '📷': 'camera.json',
+};
+const icon = (emoji) => `<span class="emoji-icon" data-emoji="${esc(emoji)}" aria-hidden="true"></span>`;
+function destroyAnimations(root) {
+  const nodes = [...(root.matches?.('.emoji-icon') ? [root] : []), ...root.querySelectorAll('.emoji-icon')];
+  nodes.forEach((node) => {
+    node._animationObserver?.disconnect();
+    if (node._animationPointerEnter) node.removeEventListener('pointerenter', node._animationPointerEnter);
+    if (node._animationClick) node.removeEventListener('click', node._animationClick);
+    node._lottieAnimation?.destroy();
+    delete node._animationObserver;
+    delete node._animationPointerEnter;
+    delete node._animationClick;
+    delete node._lottieAnimation;
+    delete node.dataset.animationMounted;
+  });
+}
+function mountAnimations(root = document) {
+  const nodes = [...(root.matches?.('.emoji-icon') ? [root] : []), ...root.querySelectorAll('.emoji-icon')]
+    .filter((node) => !node.dataset.animationMounted);
+  nodes.forEach((node) => {
+    node.dataset.animationMounted = 'true';
+    const emoji = node.dataset.emoji || '';
+    const file = ANIMATION_FILES[emoji];
+    if (!file || !window.lottie) {
+      if (file && !window.lottie) console.error('Lottie player did not load; using emoji fallback.');
+      node.textContent = emoji;
+      return;
+    }
+    const animation = window.lottie.loadAnimation({
+      container: node,
+      renderer: 'svg',
+      loop: false,
+      autoplay: false,
+      path: `icons/${file}`,
+    });
+    node._lottieAnimation = animation;
+    let isReady = false;
+    let pendingPlay = false;
+    const playFromStart = () => {
+      if (!isReady) {
+        pendingPlay = true;
+        return;
+      }
+      pendingPlay = false;
+      animation.goToAndPlay(0, true);
+    };
+    animation.addEventListener('DOMLoaded', () => {
+      isReady = true;
+      if (pendingPlay) playFromStart();
+    });
+    const pointerEnter = (event) => {
+      if (event.pointerType !== 'touch') playFromStart();
+    };
+    const click = () => playFromStart();
+    node._animationPointerEnter = pointerEnter;
+    node._animationClick = click;
+    node.addEventListener('pointerenter', pointerEnter);
+    node.addEventListener('click', click);
+    if ('IntersectionObserver' in window) {
+      const observer = new IntersectionObserver((entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          observer.disconnect();
+          playFromStart();
+        }
+      }, { threshold: 0.15 });
+      node._animationObserver = observer;
+      observer.observe(node);
+    } else {
+      playFromStart();
+    }
+    animation.addEventListener('data_failed', () => {
+      node._animationObserver?.disconnect();
+      console.error(`Animation failed to load: icons/${file}`);
+      node.textContent = emoji;
+    });
+  });
+}
+const fmt = (n) => Number(n).toLocaleString('ru-RU').replace(/\u00a0/g, ' ');
+
+/* ---------- Telegram init ---------- */
+if (tg) {
+  tg.ready();
+  tg.expand();
+  try { tg.disableVerticalSwipes?.(); } catch {}
+  try { tg.setHeaderColor?.('secondary_bg_color'); tg.setBackgroundColor?.('secondary_bg_color'); } catch {}
+}
+const tgUser = tg?.initDataUnsafe?.user || { id: 777001, first_name: 'Azizbek', username: 'azizbek' };
+let liveInviteLink = '';
+let liveRank = null;
+let liveLeaderboard = null;
+let referralGift = null;
+let referralGiftProgress = { milestone: 10, progress: 0, remaining: 10, completedMilestones: 0, completedMilestone: false };
+const profilePreviews = new Map();
+let profileRequestId = 0;
+let profileCloseTimer;
+let profileReturnFocus = null;
+
+/* ---------- Haptika ---------- */
+let hapticOn = true;
+const haptic = (kind = 'light') => {
+  if (!hapticOn || !tg?.HapticFeedback) return;
+  if (['success', 'error', 'warning'].includes(kind)) tg.HapticFeedback.notificationOccurred(kind);
+  else if (kind === 'select') tg.HapticFeedback.selectionChanged();
+  else tg.HapticFeedback.impactOccurred(kind);
+};
+
+/* ---------- Demo ma'lumot ---------- */
+const NAMES = ['Dilshod', 'Madina', 'Jasur', 'Nilufar', 'Sardor', 'Zarina', 'Otabek', 'Malika', 'Bekzod', 'Sevara', 'Javlon', 'Kamola'];
+const GRADS = [['#0a84ff', '#5e5ce6'], ['#ff9f0a', '#ff375f'], ['#30d158', '#0a84ff'], ['#bf5af2', '#ff375f'], ['#64d2ff', '#30d158']];
+const demo = {
+  user: { id: tgUser.id, name: tgUser.first_name, username: tgUser.username, balance: 1240, streak: 4, dailyClaimed: false },
+  tasks: [
+    { id: 't1', icon: '📣', color: '#0a84ff', title: 'Kanalga obuna bo\'ling', sub: 'Yangiliklar kanali', reward: 100, done: false },
+    { id: 't2', icon: '📷', color: '#ff375f', title: 'Instagram\'da kuzating', sub: 'Rasmiy sahifa', reward: 75, done: false },
+    { id: 't4', icon: '👥', color: '#30d158', title: '3 ta do\'st taklif qiling', sub: 'Bronza mukofot', reward: 200, done: false },
+  ],
+  friends: Array.from({ length: 5 }, (_, i) => ({ name: NAMES[i], username: NAMES[i].toLowerCase(), earned: CONFIG.REF_REWARD, ago: `${i + 1} kun oldin` })),
+  top: NAMES.map((n, i) => ({ userId: `demo-top-${i + 1}`, name: n, username: n.toLowerCase(), score: 9800 - i * 740 - i * i * 20, invited: 120 - i * 9 })),
+};
+
+async function refreshLiveData() {
+  const data = await api('/me');
+  demo.user = { ...demo.user, ...data.user };
+  demo.tasks = data.tasks.map((task) => ({
+    ...task,
+    color: task.type === 'manual' ? '#ff375f' : task.type === 'referrals' ? '#30d158' : '#0a84ff',
+  }));
+  demo.friends = data.friends;
+  referralGift = data.referralGift || null;
+  referralGiftProgress = data.referralGiftProgress || referralGiftProgress;
+  liveInviteLink = data.inviteLink;
+  liveRank = data.user.rank;
+  CONFIG.WEEKLY_PRIZE = data.prize;
+  CONFIG.BOT_USERNAME = data.botUsername;
+  CONFIG.REF_REWARD = data.rewards.refReward;
+  CONFIG.REF_BONUS = data.rewards.refBonus;
+  return data;
+}
+
+/* ---------- MongoDB API qatlami ---------- */
+async function api(path, opts = {}) {
+  if (!LIVE_MODE) return null;
+  const res = await fetch(CONFIG.API_URL + path, {
+    ...opts,
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Telegram-Init-Data': tg?.initData || '',
+      'X-Device-ID': DEVICE_ID,
+      ...(opts.headers || {}),
+    },
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || `Server xatosi (${res.status})`);
+  return data;
+}
+
+/* ---------- Yordamchilar ---------- */
+const initials = (n) => (n || '?').trim().charAt(0).toUpperCase();
+const grad = (i) => { const g = GRADS[i % GRADS.length]; return `--a:${g[0]};--b:${g[1]}`; };
+function avatarMarkup(user, index, className = 'avatar') {
+  const photoUrl = typeof user.photoUrl === 'string' ? user.photoUrl : '';
+  let safePhotoUrl = '';
+  if (photoUrl) {
+    try {
+      const parsed = new URL(photoUrl);
+      if (parsed.protocol === 'https:') safePhotoUrl = parsed.href;
+    } catch {}
+  }
+  const fallback = `<span class="avatar-fallback">${esc(initials(user.name))}</span>`;
+  const image = safePhotoUrl
+    ? `<img class="avatar-photo" src="${esc(safePhotoUrl)}" alt="" loading="lazy" decoding="async" fetchpriority="low" />`
+    : '';
+  return `<div class="${className}" style="${grad(index)}">${fallback}${image}</div>`;
+}
+function profileTriggerAttrs(user) {
+  const userId = String(user.userId ?? user.id ?? '');
+  if (!userId || (LIVE_MODE && !/^\d{1,20}$/.test(userId))) return '';
+  profilePreviews.set(userId, {
+    id: userId,
+    name: user.name || 'Foydalanuvchi',
+    username: user.username || '',
+    photoUrl: user.photoUrl || '',
+    balance: user.balance ?? user.score ?? 0,
+  });
+  return `data-profile-id="${esc(userId)}" role="button" tabindex="0" aria-label="${esc(user.name || 'Foydalanuvchi')} profilini ko‘rish"`;
+}
+function mountAvatarImages(root) {
+  root.querySelectorAll('.avatar-photo:not([data-avatar-bound])').forEach((image) => {
+    image.dataset.avatarBound = 'true';
+    image.addEventListener('load', () => image.parentElement.classList.add('has-photo'), { once: true });
+    image.addEventListener('error', () => image.remove(), { once: true });
+    if (image.complete && image.naturalWidth > 0) image.parentElement.classList.add('has-photo');
+    else if (image.complete) image.remove();
+  });
+}
+const refLink = () => {
+  if (liveInviteLink) return liveInviteLink;
+  const p = `ref_${tgUser.id}`;
+  return `https://t.me/${CONFIG.BOT_USERNAME}?start=${p}`;
+};
+let toastT;
+function toast(msg) {
+  const t = $('#toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastT);
+  toastT = setTimeout(() => t.classList.remove('show'), 2200);
+}
+function countUp(el, to, ms = 900) {
+  const from = Number(el.dataset.v || 0);
+  el.dataset.v = to;
+  const t0 = performance.now();
+  const step = (t) => {
+    const k = Math.min(1, (t - t0) / ms);
+    const e = 1 - Math.pow(1 - k, 3);
+    el.textContent = fmt(Math.round(from + (to - from) * e));
+    if (k < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+function confetti() {
+  const colors = ['#0a84ff', '#30d158', '#ff9f0a', '#ff375f', '#bf5af2', '#ffd60a'];
+  for (let i = 0; i < 36; i++) {
+    const c = document.createElement('i');
+    c.className = 'confetti';
+    c.style.left = Math.random() * 100 + 'vw';
+    c.style.background = colors[i % colors.length];
+    c.style.setProperty('--x', (Math.random() * 160 - 80) + 'px');
+    c.style.animationDelay = Math.random() * .3 + 's';
+    document.body.appendChild(c);
+    setTimeout(() => c.remove(), 2200);
+  }
+}
+
+/* ---------- Render ---------- */
+function levelOf(b) {
+  let i = 0;
+  while (i < CONFIG.LEVELS.length - 1 && b >= CONFIG.LEVELS[i + 1]) i++;
+  const lo = CONFIG.LEVELS[i], hi = CONFIG.LEVELS[i + 1] ?? lo;
+  return { n: i + 1, lo, hi, pct: hi === lo ? 100 : ((b - lo) / (hi - lo)) * 100 };
+}
+
+function renderHome() {
+  const u = demo.user;
+  $('#greeting').textContent = `Salom, ${u.name}`;
+  countUp($('#balance'), u.balance);
+  const L = levelOf(u.balance);
+  $('#levelName').textContent = `${L.n}-daraja`;
+  $('#levelBadge').hidden = L.n < 2;
+  $('#levelNext').textContent = `${fmt(u.balance)} / ${fmt(L.hi)}`;
+  setTimeout(() => ($('#levelBar').style.width = L.pct + '%'), 80);
+  $('#statFriends').textContent = LIVE_MODE ? (demo.user.referralCount || 0) : demo.friends.length;
+  $('#statRank').textContent = LIVE_MODE ? (liveRank ? `#${liveRank}` : '—') : '#' + (demo.top.length + 38);
+  $('#statStreak').textContent = u.streak;
+
+  const btn = $('#dailyBtn');
+  btn.disabled = u.dailyClaimed;
+  destroyAnimations(btn);
+  btn.innerHTML = `${icon(u.dailyClaimed ? '✅' : '🎁')} ${u.dailyClaimed ? 'Bugungi bonus olingan' : 'Kunlik bonusni olish'}`;
+
+  destroyAnimations($('#taskList'));
+  $('#taskList').innerHTML = demo.tasks.map((t) => `
+    <div class="item">
+      <span class="ico" style="--c:${t.color}">${icon(t.icon)}</span>
+      <div class="txt"><b>${esc(t.title)}</b><span>${esc(t.sub)} · ${t.requiredForReferral ? 'Majburiy obuna' : `+${fmt(t.reward)} coin`}${t.type === 'referrals' ? ` · ${t.progress}/${t.requiredCount}` : ''}</span>${t.url ? `<a class="task-link" href="${esc(t.url)}" target="_blank" rel="noopener noreferrer">Topshiriqni ochish ↗</a>` : ''}${LIVE_MODE && t.type === 'manual' && !t.done && !t.pending ? '<input class="task-proof" data-proof type="text" maxlength="300" placeholder="Instagram username yoki havola" aria-label="Topshiriq isboti">' : ''}</div>
+      <button class="pill ${t.done ? 'done' : ''}" data-task="${esc(t.id)}" ${t.done || t.pending || (t.type === 'referrals' && !t.canClaim) ? 'disabled' : ''}>${t.done ? icon('✅') : t.pending ? 'Kutilmoqda' : t.requiredForReferral ? 'Obunani tekshirish' : t.type === 'manual' ? 'Tasdiqqa yuborish' : t.type === 'referrals' && !t.canClaim ? 'Do‘st taklif qiling' : 'Tekshirish'}</button>
+    </div>`).join('');
+  mountAnimations(btn);
+  mountAnimations($('#taskList'));
+}
+
+function renderFriends() {
+  $('#refReward').textContent = CONFIG.REF_REWARD;
+  $('#refBonus').textContent = CONFIG.REF_BONUS;
+  $('#refLink').textContent = refLink();
+
+  const n = LIVE_MODE ? (demo.user.referralCount || 0) : demo.friends.length;
+  $('#invCount').textContent = n;
+  const progress = LIVE_MODE
+    ? referralGiftProgress
+    : {
+      milestone: 10,
+      progress: n > 0 && n % 10 === 0 ? 10 : n % 10,
+      remaining: n > 0 && n % 10 === 0 ? 10 : 10 - (n % 10),
+      completedMilestones: Math.floor(n / 10),
+      completedMilestone: n > 0 && n % 10 === 0,
+    };
+  const ratio = Math.min(100, (progress.progress / progress.milestone) * 100);
+  const progressBar = $('#referralGiftBar');
+  const progressTrack = progressBar.parentElement;
+  progressBar.style.width = `${ratio}%`;
+  progressTrack.setAttribute('aria-valuenow', String(progress.progress));
+  $('#referralGiftCount').textContent = `${progress.progress} / ${progress.milestone} ta tasdiqlangan do‘st`;
+  $('#referralGiftRemaining').textContent = progress.completedMilestone
+    ? 'Bosqich bajarildi'
+    : `Yana ${progress.remaining} ta qoldi`;
+  $('#referralGiftDescription').textContent = referralGift
+    ? `${referralGift.emoji} Gift · ${fmt(referralGift.stars)} Stars. Faqat tasdiqlangan takliflar hisoblanadi.`
+    : 'Faqat tasdiqlangan takliflar hisoblanadi. Admin hali yuboriladigan giftni tanlamagan.';
+  $('#friendList').innerHTML = n
+    ? demo.friends.map((f, i) => {
+      const profileId = f.id || (!LIVE_MODE ? `demo-friend-${i + 1}` : '');
+      const trigger = profileTriggerAttrs({ ...f, userId: profileId });
+      return `
+      <div class="item${trigger ? ' profile-trigger' : ''}" ${trigger}>
+        ${avatarMarkup(f, i)}
+        <div class="txt"><b>${esc(f.name)}</b><span>${esc(f.ago)}</span></div>
+        <span class="score" style="color:var(--green)">+${f.earned}</span>
+      </div>`;
+    }).join('')
+    : `<div class="empty">Hali hech kim taklif qilinmagan.<br>Havolani ulashing.</div>`;
+}
+
+let period = 'week';
+async function renderTop() {
+  const donorsRequest = renderTopDonors();
+  let data;
+  let own = null;
+  if (LIVE_MODE) {
+    try {
+      liveLeaderboard = await api(`/leaderboard?period=${period}`);
+      data = liveLeaderboard.rows;
+      own = { name: `${demo.user.name} (Siz)`, score: liveLeaderboard.ownScore, rank: liveLeaderboard.rank };
+    } catch (error) {
+      toast(error.message);
+      await donorsRequest;
+      return;
+    }
+  } else {
+    data = [...demo.top].map((x) => ({ ...x, score: period === 'week' ? Math.round(x.score * 0.22) : x.score }));
+    own = { name: `${demo.user.name} (Siz)`, score: Math.round(demo.user.balance * (period === 'week' ? 0.3 : 1)), rank: demo.top.length + 38 };
+  }
+  const [a, b, c] = data;
+  const podiumUser = (x, fallback) => x || { name: fallback, score: 0 };
+  const pod = (x, rank, cls) => {
+    const trigger = profileTriggerAttrs(x);
+    return `
+    <div class="pod glass ${cls}${trigger ? ' profile-trigger' : ''}" ${trigger}>
+      <span class="medal ${cls}">${icon({ p1: '🥇', p2: '🥈', p3: '🥉' }[cls])}</span>
+      ${avatarMarkup(x, rank)}
+      <b>${esc(x.name)}</b><span>${fmt(x.score)}</span>
+    </div>`;
+  };
+  destroyAnimations($('#podium'));
+  $('#podium').innerHTML = pod(podiumUser(b, '—'), 1, 'p2') + pod(podiumUser(a, 'Hali yo‘q'), 0, 'p1') + pod(podiumUser(c, '—'), 2, 'p3');
+  mountAnimations($('#podium'));
+
+  const rows = data.slice(3).map((x, i) => {
+    const trigger = profileTriggerAttrs(x);
+    return `
+    <div class="item lbrow${trigger ? ' profile-trigger' : ''}" ${trigger}>
+      <span class="rank">${i + 4}</span>
+      ${avatarMarkup(x, i + 3)}
+      <div class="txt"><b>${esc(x.name)}</b><span>${x.invited === undefined ? (x.username ? `@${esc(x.username)}` : 'Ishtirokchi') : `${x.invited} ta taklif`}</span></div>
+      <span class="score">${fmt(x.score)}</span>
+    </div>`;
+  }).join('');
+  const ownVisible = data.some((x) => String(x.userId) === String(tgUser.id));
+  const ownProfile = { userId: tgUser.id, name: demo.user.name, username: demo.user.username, photoUrl: demo.user.photoUrl };
+  const ownTrigger = profileTriggerAttrs(ownProfile);
+  const ownRow = own.score > 0 && !ownVisible ? `
+    <div class="item lbrow me${ownTrigger ? ' profile-trigger' : ''}" ${ownTrigger}>
+      <span class="rank">${own.rank || '—'}</span>
+      ${avatarMarkup(ownProfile, 1)}
+      <div class="txt"><b>${esc(own.name)}</b><span>Sizning o‘rningiz</span></div>
+      <span class="score">${fmt(own.score)}</span>
+    </div>` : '';
+  $('#topList').innerHTML = rows + ownRow || (data.length
+    ? '<div class="empty">Top-3 ishtirokchilar yuqorida ko‘rsatilgan.</div>'
+    : '<div class="empty">Hali reytingda qatnashuvchi yo‘q.</div>');
+  mountAvatarImages($('#podium'));
+  mountAvatarImages($('#topList'));
+  await donorsRequest;
+}
+
+async function renderTopDonors() {
+  const container = $('#topDonors');
+  if (!LIVE_MODE) {
+    container.innerHTML = '<div class="empty">Donaterlar ro‘yxati Telegram Mini App’da ko‘rinadi.</div>';
+    return;
+  }
+  try {
+    const donors = await api('/top-donors');
+    container.innerHTML = donors.length
+      ? donors.map((donor, index) => {
+        const trigger = profileTriggerAttrs(donor);
+        return `
+        <div class="item donor-row${trigger ? ' profile-trigger' : ''}" ${trigger}>
+          <span class="rank">${index + 1}</span>
+          ${avatarMarkup(donor, index)}
+          <div class="txt"><b>${esc(donor.name || 'Foydalanuvchi')}</b><span>${donor.username ? `@${esc(donor.username)}` : 'Donater'}</span></div>
+          <span class="donor-stars">${fmt(donor.stars)} ⭐</span>
+        </div>`;
+      }).join('')
+      : '<div class="empty">Hali donat qilganlar yo‘q.</div>';
+    mountAvatarImages(container);
+  } catch (error) {
+    container.innerHTML = '<div class="empty">Donaterlar ro‘yxatini yuklab bo‘lmadi.</div>';
+    toast(error.message);
+  }
+}
+
+function renderProfile() {
+  const firstName = LIVE_MODE ? demo.user.name : tgUser.first_name;
+  const username = LIVE_MODE ? demo.user.username : tgUser.username;
+  const fullName = LIVE_MODE ? firstName : firstName + (tgUser.last_name ? ' ' + tgUser.last_name : '');
+  $('#meName').textContent = firstName + (LIVE_MODE ? '' : (tgUser.last_name ? ' ' + tgUser.last_name : ''));
+  $('#meUser').textContent = username ? '@' + username : `ID: ${tgUser.id}`;
+  const av = $('#meAvatar');
+  av.setAttribute('style', grad(0));
+  if (tgUser.photo_url) av.innerHTML = `<img src="${esc(tgUser.photo_url)}" alt="" />`;
+  else av.textContent = initials(tgUser.first_name);
+  const profileCard = $('#page-me .profile');
+  const trigger = profileTriggerAttrs({
+    userId: demo.user.id || tgUser.id,
+    name: fullName,
+    username,
+    photoUrl: demo.user.photoUrl || tgUser.photo_url,
+    balance: demo.user.balance,
+  });
+  profileCard.classList.add('profile-trigger');
+  decorateProfileCard(profileCard, demo.user.id || tgUser.id, demo.user.balance);
+  profileCard.setAttribute('role', 'button');
+  profileCard.setAttribute('tabindex', '0');
+  profileCard.setAttribute('aria-label', `${fullName} profilini ko‘rish`);
+  if (trigger) profileCard.dataset.profileId = String(demo.user.id || tgUser.id);
+}
+
+const PROFILE_HUES = [140, 210, 28, 270, 355, 180, 320, 48];
+function profileHue(id) {
+  let h = 0;
+  for (const c of String(id)) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return PROFILE_HUES[h % PROFILE_HUES.length];
+}
+function decorateProfileCard(card, id, balance) {
+  card.style.setProperty('--ph', profileHue(id));
+  const tag = $('#meTag'); if (tag) tag.textContent = `ID #${id}`;
+  const pill = $('#mePill'); if (pill) pill.textContent = `${fmt(balance)} coin`;
+}
+
+function renderProfileSheet(user) {
+  const content = $('#profileSheetContent');
+  content.innerHTML = `
+    <div class="tgp" style="--ph:${profileHue(user.id)}">
+      <i class="tgp-pattern" aria-hidden="true"></i>
+      <div class="tgp-avatar-wrap">
+        ${avatarMarkup({ name: user.name, photoUrl: user.photoUrl }, 0, 'avatar profile-sheet__avatar')}
+        <span class="tgp-tag">ID #${esc(user.id)}</span>
+      </div>
+      <h2 class="profile-sheet__name" id="profileSheetName">${esc(user.name || 'Foydalanuvchi')}</h2>
+      <p class="profile-sheet__username">${user.username ? `@${esc(user.username)}` : 'Username ko‘rsatilmagan'}</p>
+      <span class="tgp-pill">${fmt(user.balance)} coin</span>
+    </div>
+    <div class="profile-sheet__stats">
+      <div class="profile-sheet__stat"><span>Telegram ID</span><b>${esc(user.id)}</b></div>
+      <div class="profile-sheet__stat"><span>To‘plagan ball</span><b>${fmt(user.balance)} coin</b></div>
+    </div>`;
+  mountAvatarImages(content);
+}
+
+async function openProfileSheet(userId, trigger) {
+  const sheet = $('#profileSheet');
+  const content = $('#profileSheetContent');
+  const requestId = ++profileRequestId;
+  clearTimeout(profileCloseTimer);
+  profileReturnFocus = trigger;
+  content.innerHTML = '<div class="empty">Profil yuklanmoqda…</div>';
+  sheet.hidden = false;
+  sheet.setAttribute('aria-hidden', 'false');
+  document.body.classList.add('profile-open');
+  requestAnimationFrame(() => sheet.classList.add('is-open'));
+  $('#profileSheetClose').focus();
+  try {
+    const user = LIVE_MODE
+      ? await api(`/users/${encodeURIComponent(userId)}/profile`)
+      : profilePreviews.get(userId);
+    if (requestId !== profileRequestId) return;
+    if (!user) throw new Error('Foydalanuvchi profilini topib bo‘lmadi.');
+    renderProfileSheet(user);
+  } catch (error) {
+    if (requestId !== profileRequestId) return;
+    content.textContent = error.message || 'Profilni yuklab bo‘lmadi.';
+  }
+}
+
+function closeProfileSheet() {
+  const sheet = $('#profileSheet');
+  if (sheet.hidden) return;
+  profileRequestId++;
+  sheet.classList.remove('is-open');
+  sheet.setAttribute('aria-hidden', 'true');
+  document.body.classList.remove('profile-open');
+  clearTimeout(profileCloseTimer);
+  profileCloseTimer = setTimeout(() => { sheet.hidden = true; }, 340);
+  profileReturnFocus?.focus?.();
+}
+
+document.addEventListener('click', (event) => {
+  if (event.target.closest('#profileSheetClose, #profileSheetBackdrop')) {
+    closeProfileSheet();
+    return;
+  }
+  const trigger = event.target.closest('[data-profile-id]');
+  if (trigger) void openProfileSheet(trigger.dataset.profileId, trigger);
+});
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') {
+    closeProfileSheet();
+    return;
+  }
+  if ((event.key === 'Enter' || event.key === ' ') && event.target.matches('[data-profile-id]')) {
+    event.preventDefault();
+    void openProfileSheet(event.target.dataset.profileId, event.target);
+  }
+});
+
+/* ---------- Navigatsiya ---------- */
+const TABS = ['home', 'friends', 'top', 'me', 'rules'];
+function go(tab, silent) {
+  const idx = TABS.indexOf(tab);
+  if (idx < 0) return;
+  $$('.page').forEach((p) => p.classList.toggle('active', p.id === 'page-' + tab));
+  const tabIndex = tab === 'rules' ? TABS.indexOf('me') : idx;
+  $$('#tabbar button').forEach((b) => b.classList.toggle('on', b.dataset.t === (tab === 'rules' ? 'me' : tab)));
+  $('.tab-thumb').style.transform = `translateX(${tabIndex * 100}%)`;
+  window.scrollTo({ top: 0 });
+  if (!silent) haptic('select');
+  if (tab === 'friends') renderFriends();
+  if (tab === 'top') renderTop();
+}
+$('#tabbar').addEventListener('click', (e) => {
+  const b = e.target.closest('button');
+  if (b) go(b.dataset.t);
+});
+
+/* Segmented */
+$('#seg').addEventListener('click', (e) => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  period = b.dataset.p;
+  $$('#seg button').forEach((x) => x.classList.toggle('on', x === b));
+  $('#seg .thumb').style.transform = `translateX(${period === 'week' ? 0 : 100}%)`;
+  haptic('select');
+  renderTop();
+});
+
+/* ---------- Harakatlar ---------- */
+$('#dailyBtn').addEventListener('click', async () => {
+  const u = demo.user;
+  if (u.dailyClaimed) return;
+  if (LIVE_MODE) {
+    try {
+      const result = await api('/daily', { method: 'POST' });
+      await refreshLiveData();
+      haptic('success'); confetti(); toast(`+${fmt(result.reward)} coin qo‘shildi`);
+      renderHome();
+    } catch (error) {
+      toast(error.message);
+    }
+    return;
+  }
+  const bonus = 20 + Math.min(u.streak, 7) * 10;
+  u.balance += bonus; u.streak += 1; u.dailyClaimed = true;
+  haptic('success'); confetti(); toast(`+${bonus} coin qo'shildi`);
+  renderHome();
+});
+
+$('#taskList').addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-task]');
+  if (!b) return;
+  const t = demo.tasks.find((x) => x.id === b.dataset.task);
+  if (!t || t.done || t.pending || b.disabled) return;
+  haptic('medium');
+  if (LIVE_MODE) {
+    try {
+      const proof = b.closest('.item').querySelector('[data-proof]')?.value.trim();
+      const result = await api('/tasks/' + encodeURIComponent(t.id), {
+        method: 'POST',
+        body: JSON.stringify(proof ? { proof } : {}),
+      });
+      await refreshLiveData();
+      if (result.status === 'pending') toast('Topshiriq admin tasdig‘iga yuborildi.');
+      else {
+        haptic('success');
+        toast(result.reward ? `+${fmt(result.reward)} coin` : 'Obuna tasdiqlandi.');
+      }
+      renderHome();
+    } catch (error) {
+      toast(error.message);
+    }
+    return;
+  }
+  t.done = true; demo.user.balance += t.reward;
+  haptic('success'); toast(`+${t.reward} coin`);
+  renderHome();
+});
+
+$('#donateBtn').addEventListener('click', async () => {
+  const input = $('#donationAmount');
+  const messageInput = $('#donationMessage');
+  const button = $('#donateBtn');
+  const amount = Number(input.value);
+  const message = messageInput.value.trim();
+  if (!Number.isSafeInteger(amount) || amount < 1 || amount > 10000000) {
+    toast('Donat miqdori 1 dan 10 000 000 Stars gacha butun son bo‘lishi kerak.');
+    input.focus();
+    return;
+  }
+  if (!message || message.length > 500) {
+    toast('Donat uchun 1 dan 500 belgigacha xabar yozing.');
+    messageInput.focus();
+    return;
+  }
+  if (!LIVE_MODE) {
+    toast('Donat qilish uchun Mini-ilovani Telegram ichida oching.');
+    return;
+  }
+  if (typeof tg?.openInvoice !== 'function') {
+    toast('Stars to‘lovi uchun Telegram ilovasini yangilang.');
+    return;
+  }
+
+  button.disabled = true;
+  input.disabled = true;
+  messageInput.disabled = true;
+  try {
+    const invoice = await api('/donations/invoice', {
+      method: 'POST',
+      body: JSON.stringify({ amount, message }),
+    });
+    if (typeof invoice?.invoiceLink !== 'string' || !invoice.invoiceLink) {
+      throw new Error('To‘lov havolasini yaratib bo‘lmadi.');
+    }
+    tg.openInvoice(invoice.invoiceLink, (status) => {
+      button.disabled = false;
+      input.disabled = false;
+      messageInput.disabled = false;
+      if (status === 'paid') {
+        haptic('success');
+        toast(`Rahmat! ${fmt(amount)} Stars donat qilindi.`);
+      } else if (status === 'failed') {
+        toast('To‘lov amalga oshmadi. Qayta urinib ko‘ring.');
+      }
+    });
+  } catch (error) {
+    button.disabled = false;
+    input.disabled = false;
+    messageInput.disabled = false;
+    toast(error.message);
+  }
+});
+
+$('#copyBtn').addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText(refLink()); }
+  catch { const i = document.createElement('input'); i.value = refLink(); document.body.appendChild(i); i.select(); document.execCommand('copy'); i.remove(); }
+  haptic('success'); toast('Havola nusxalandi');
+});
+$('#linkBox').addEventListener('click', () => $('#copyBtn').click());
+
+$('#shareBtn').addEventListener('click', () => {
+  haptic('medium');
+  const text = `Menga qo'shiling va birga coin yig'amiz! Kirsangiz +${CONFIG.REF_BONUS} coin sovg'a.`;
+  const url = `https://t.me/share/url?url=${encodeURIComponent(refLink())}&text=${encodeURIComponent(text)}`;
+  if (tg?.openTelegramLink) tg.openTelegramLink(url); else window.open(url, '_blank');
+});
+
+$('#hapticToggle').addEventListener('change', (e) => { hapticOn = e.target.checked; if (hapticOn) haptic('medium'); });
+let rulesLoaded = false;
+async function openRulesPage() {
+  go('rules');
+  if (rulesLoaded) return;
+  const content = $('#rulesContent');
+  const retry = $('#rulesRetry');
+  content.textContent = 'Qoidalar yuklanmoqda…';
+  retry.hidden = true;
+  try {
+    const response = await fetch('/qoidalar.txt', { cache: 'no-cache' });
+    if (!response.ok) throw new Error(`Qoidalarni yuklab bo‘lmadi (${response.status}).`);
+    const rules = await response.text();
+    if (!rules.trim()) throw new Error('Qoidalar fayli bo‘sh.');
+    content.textContent = rules;
+    rulesLoaded = true;
+  } catch (error) {
+    console.error('Could not load rules:', error);
+    content.textContent = error.message || 'Qoidalarni yuklashda xatolik yuz berdi.';
+    retry.hidden = false;
+  }
+}
+$('#rulesBtn').addEventListener('click', () => { haptic('light'); void openRulesPage(); });
+$('#rulesBack').addEventListener('click', () => go('me'));
+$('#rulesRetry').addEventListener('click', () => { void openRulesPage(); });
+async function redeemPromo() {
+  const input = $('#promoCode');
+  const button = $('#redeemPromoBtn');
+  const code = input.value.trim().toUpperCase();
+  if (!code) {
+    toast('Promo-kodni kiriting.');
+    input.focus();
+    return;
+  }
+  if (!LIVE_MODE) {
+    toast('Promo-kodni Telegram Mini-ilovada ishlating.');
+    return;
+  }
+  button.disabled = true;
+  try {
+    const result = await api('/promos/redeem', {
+      method: 'POST',
+      body: JSON.stringify({ code }),
+    });
+    input.value = '';
+    haptic('success');
+    toast(`Promo-kod qabul qilindi! +${fmt(result.reward)} coin`);
+    await refreshLiveData();
+    renderHome();
+  } catch (error) {
+    haptic('error');
+    toast(error.message);
+  } finally {
+    button.disabled = false;
+  }
+}
+$('#redeemPromoBtn').addEventListener('click', () => { haptic('light'); void redeemPromo(); });
+$('#promoCode').addEventListener('keydown', (event) => {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    void redeemPromo();
+  }
+});
+function openPromoFromLaunch() {
+  const searchParams = new URLSearchParams(window.location.search);
+  const queryCode = searchParams.get('promo');
+  const startParam = tg?.initDataUnsafe?.start_param
+    || searchParams.get('tgWebAppStartParam')
+    || searchParams.get('startapp')
+    || '';
+  const launchCode = queryCode || (startParam.startsWith('promo_') ? startParam.slice(6) : '');
+  if (!launchCode) return;
+  go('home', true);
+  $('#promoCode').value = launchCode.slice(0, 32);
+  setTimeout(() => {
+    $('#promoCard').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    $('#promoCode').focus({ preventScroll: true });
+  }, 200);
+}
+$('#supportBtn').addEventListener('click', () => {
+  haptic('light');
+  if (tg?.openTelegramLink) tg.openTelegramLink(`https://t.me/${CONFIG.BOT_USERNAME}`); else toast('Yordam: tez orada');
+});
+
+/* ---------- Haftalik sovg'a ---------- */
+function weekEnd() {
+  const now = new Date(Date.now() + 5 * 60 * 60 * 1000);
+  const daysUntilMonday = (8 - now.getUTCDay()) % 7 || 7;
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + daysUntilMonday) - 5 * 60 * 60 * 1000);
+}
+function renderPrize() {
+  const html = `
+    <div class="card prize glass">
+      <div class="prize-head">
+        <span class="trophy">${icon('🏆')}</span>
+        <div><b>Haftalik sovg'a</b><span>Har yakshanba eng ko'p ball yig'gan 1 kishiga</span></div>
+      </div>
+      <div class="prize-amount">${fmt(CONFIG.WEEKLY_PRIZE)} <small>so'm</small></div>
+      <div class="countdown js-cd"></div>
+    </div>`;
+  $$('.js-prize-slot').forEach((el) => {
+    destroyAnimations(el);
+    el.innerHTML = html;
+  });
+  $$('.js-prize-slot').forEach(mountAnimations);
+  tickCountdown();
+}
+function tickCountdown() {
+  let s = Math.max(0, Math.floor((weekEnd() - new Date()) / 1000));
+  const d = Math.floor(s / 86400); s %= 86400;
+  const h = Math.floor(s / 3600); s %= 3600;
+  const m = Math.floor(s / 60); s %= 60;
+  const cell = (v, l) => `<div><b>${String(v).padStart(2, '0')}</b><span>${l}</span></div>`;
+  const html = cell(d, 'kun') + cell(h, 'soat') + cell(m, 'daqiqa') + cell(s, 'soniya');
+  $$('.js-cd').forEach((el) => (el.innerHTML = html));
+}
+setInterval(tickCountdown, 1000);
+
+/* ---------- Captcha (birinchi ochilganda) ----------
+   Har bir foydalanuvchiga ALOHIDA, tasodifiy tuziladigan savollar beriladi:
+   - 3 ta savol (rasm nomi bo'yicha topish, misol, rasmlarni sanash), tartibi har safar boshqacha
+   - 40 ta rasm fondidan har safar yangi 9 talik to'plam, variantlar tartibi aralash
+   - tasodifiy "nonce" + foydalanuvchi ID dan seed olinadi
+   DIQQAT: haqiqiy kafolat serverda bo'ladi. API_URL yoqilganda savollarni server
+   yaratadi (to'g'ri javoblar brauzerga yuborilmaydi), har savol bir martalik va
+   MongoDB'dagi unique indeks 2 ta userga bir xil savol berilishiga yo'l qo'ymaydi.
+   Brauzerdagi belgi (localStorage) ishonchli emas: tasdiqlanganlik serverda saqlanadi. */
+const VERIFY_KEY = 'verified_' + tgUser.id;
+const isVerified = () => { try { return localStorage.getItem(VERIFY_KEY) === '1'; } catch { return false; } };
+const setVerified = () => { try { localStorage.setItem(VERIFY_KEY, '1'); } catch {} };
+
+const CAP_POOL = [
+  { e: '🐼', n: 'Panda' }, { e: '🦊', n: 'Tulki' }, { e: '🐴', n: 'Ot' }, { e: '🐸', n: 'Baqa' },
+  { e: '🦁', n: 'Sher' }, { e: '🐧', n: 'Pingvin' }, { e: '🐙', n: 'Sakkizoyoq' }, { e: '🐢', n: 'Toshbaqa' },
+  { e: '🐘', n: 'Fil' }, { e: '🐵', n: 'Maymun' }, { e: '🐰', n: 'Quyon' }, { e: '🐻', n: 'Ayiq' },
+  { e: '🐶', n: 'It' }, { e: '🐱', n: 'Mushuk' }, { e: '🐮', n: 'Sigir' }, { e: '🐷', n: "Cho'chqa" },
+  { e: '🐔', n: 'Tovuq' }, { e: '🦆', n: "O'rdak" }, { e: '🐝', n: 'Asalari' }, { e: '🦋', n: 'Kapalak' },
+  { e: '🐟', n: 'Baliq' }, { e: '🐬', n: 'Delfin' }, { e: '🍎', n: 'Olma' }, { e: '🍌', n: 'Banan' },
+  { e: '🍇', n: 'Uzum' }, { e: '🍉', n: 'Tarvuz' }, { e: '🍒', n: 'Gilos' }, { e: '🍓', n: 'Qulupnay' },
+  { e: '🍋', n: 'Limon' }, { e: '🥕', n: 'Sabzi' }, { e: '🚗', n: 'Mashina' }, { e: '🚲', n: 'Velosiped' },
+  { e: '⚽', n: "To'p" }, { e: '🌙', n: 'Oy' }, { e: '⭐', n: 'Yulduz' }, { e: '🌳', n: 'Daraxt' },
+  { e: '🏠', n: 'Uy' }, { e: '🎈', n: 'Shar' }, { e: '🔑', n: 'Kalit' }, { e: '🚀', n: 'Raketa' },
+];
+function makeRng(s0, s1, s2, s3) {
+  // sfc32: 128 bitli holat, shuning uchun seedlar to'qnashishi amalda mumkin emas
+  let a = s0 >>> 0, b = s1 >>> 0, c = s2 >>> 0, d = s3 >>> 0;
+  const next = () => {
+    a >>>= 0; b >>>= 0; c >>>= 0; d >>>= 0;
+    let t = (a + b) | 0; a = b ^ (b >>> 9); b = (c + (c << 3)) | 0; c = (c << 21) | (c >>> 11);
+    d = (d + 1) | 0; t = (t + d) | 0; c = (c + t) | 0;
+    return (t >>> 0) / 4294967296;
+  };
+  for (let i = 0; i < 15; i++) next();
+  return next;
+}
+function buildChallenge() {
+  const nonce = crypto.getRandomValues(new Uint32Array(4));
+  const uid = Number(tgUser.id);
+  const rnd = makeRng(uid % 4294967296 ^ nonce[0], Math.floor(uid / 4294967296) ^ nonce[1], nonce[2], nonce[3]);
+  const rint = (lo, hi) => lo + Math.floor(rnd() * (hi - lo + 1));
+  const shuf = (arr) => { arr = [...arr]; for (let i = arr.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [arr[i], arr[j]] = [arr[j], arr[i]]; } return arr; };
+  const nums = (arr) => arr.map((v) => ({ id: String(v), label: String(v) }));
+  const makers = {
+    name() {
+      const opts = shuf(CAP_POOL).slice(0, 9);
+      const t = opts[rint(0, 8)];
+      return { q: 'Quyidagi rasmni toping:', big: t.n, options: opts.map((o, i) => ({ id: String(i), label: o.e })), answer: String(opts.indexOf(t)), key: opts.map((o) => o.e).join('') + t.e };
+    },
+    math() {
+      let a = rint(3, 25), b = rint(2, 20);
+      const plus = rnd() < 0.5;
+      if (!plus && b > a) [a, b] = [b, a];
+      const ans = plus ? a + b : a - b;
+      const set = new Set([ans]);
+      while (set.size < 9) { const v = ans + rint(-9, 9); if (v >= 0) set.add(v); }
+      const opts = shuf([...set]);
+      return { q: 'Natijani toping:', big: `${a} ${plus ? '+' : '−'} ${b} = ?`, num: true, options: nums(opts), answer: String(ans), key: `${a}${plus ? '+' : '-'}${b}:${opts.join(',')}` };
+    },
+    count() {
+      const e = CAP_POOL[rint(0, CAP_POOL.length - 1)].e;
+      const n = rint(3, 9);
+      const set = new Set([n]);
+      while (set.size < 9) set.add(rint(1, 12));
+      const opts = shuf([...set]);
+      return { q: 'Nechta rasm bor?', big: e.repeat(n), image: e, count: n, num: true, options: nums(opts), answer: String(n), key: `${e}${n}:${opts.join(',')}` };
+    },
+  };
+  const rounds = shuf(['name', 'math', 'count']).map((t) => makers[t]());
+  return { id: `${tgUser.id}:${[...nonce].map((n) => n.toString(36)).join('')}`, local: true, rounds, sig: rounds.map((r) => r.key).join('|') };
+}
+
+function playChallenge(ch) {
+  return new Promise((resolve, reject) => {
+    let round = 0;
+    const answers = [];
+    const grid = $('#capGrid');
+    const dots = () => ($('#capDots').innerHTML = ch.rounds.map((_, i) => `<i class="${i < round ? 'on' : ''}"></i>`).join(''));
+    const show = () => {
+      const r = ch.rounds[round];
+      $('#capQ').textContent = r.q;
+      const target = $('#capTarget');
+      destroyAnimations(target);
+      if (r.image) target.innerHTML = Array.from({ length: r.count }, () => icon(r.image)).join('');
+      else target.textContent = r.big;
+      destroyAnimations(grid);
+      grid.innerHTML = r.options.map((o) => `<button data-id="${esc(o.id)}" aria-label="${esc(o.label)}" class="${r.num ? 'num' : ''}">${r.num ? esc(o.label) : icon(o.label)}</button>`).join('');
+      mountAnimations(target);
+      mountAnimations(grid);
+      dots();
+    };
+    grid.onclick = async (ev) => {
+      const b = ev.target.closest('button');
+      if (!b || grid.dataset.busy) return;
+      const r = ch.rounds[round];
+      const id = b.dataset.id;
+      if (ch.local && id !== r.answer) {
+        grid.dataset.busy = '1';
+        haptic('error');
+        b.classList.add('wrong');
+        setTimeout(() => resolve(false), 450);
+        return;
+      }
+      haptic('light');
+      answers.push(id);
+      round++;
+      if (round < ch.rounds.length) return show();
+      dots();
+      if (ch.local) return resolve(true);
+      grid.dataset.busy = '1';
+      try {
+        const res = await api('/captcha/verify', { method: 'POST', body: JSON.stringify({ id: ch.id, answers }) });
+        resolve(!!res?.ok);
+      } catch (error) {
+        reject(error);
+      }
+    };
+    delete grid.dataset.busy;
+    show();
+  });
+}
+
+async function runCaptcha() {
+  mountAnimations($('.cap-ico'));
+  if ((tg?.initDataUnsafe?.start_param || '').startsWith('ref_')) $('#capRef').hidden = false;
+  let fails = 0;
+  for (;;) {
+    const ch = LIVE_MODE ? await api('/captcha') : buildChallenge();
+    if (ch.verified) {
+      await window.finishLoadingIntro?.();
+      break;
+    }
+    await window.finishLoadingIntro?.();
+    $('#captcha').hidden = false;
+    document.body.classList.add('locked');
+    if (await playChallenge(ch)) break;
+    fails++;
+    $('#capMsg').textContent = "Noto'g'ri. Siz uchun yangi savollar tayyorlandi";
+    if (fails % 3 === 0) {
+      for (let s = 8; s > 0; s--) { $('#capMsg').textContent = `Ko'p xato. ${s} soniya kuting`; await new Promise((r) => setTimeout(r, 1000)); }
+      $('#capMsg').textContent = '';
+    }
+  }
+  $('#captcha').hidden = true;
+  document.body.classList.remove('locked');
+  $('#capMsg').textContent = '';
+}
+
+/* ---------- Boshlash ---------- */
+function boot(firstTime) {
+  if (firstTime && (tg?.initDataUnsafe?.start_param || '').startsWith('ref_')) demo.user.balance += CONFIG.REF_BONUS;
+  renderHome();
+  renderProfile();
+  renderPrize();
+  mountAnimations(document);
+  go('home', true);
+}
+async function startApp() {
+  try {
+    if (LIVE_MODE) {
+      const data = await refreshLiveData();
+      if (!data.verified) {
+        await runCaptcha();
+        await refreshLiveData();
+        haptic('success'); confetti(); toast('Tasdiqlandi. Xush kelibsiz!');
+      }
+      renderHome();
+      renderProfile();
+      renderPrize();
+      mountAnimations(document);
+      go('home', true);
+      openPromoFromLaunch();
+      await window.finishLoadingIntro?.();
+      return;
+    }
+    if (isVerified()) {
+      boot(false);
+      openPromoFromLaunch();
+      await window.finishLoadingIntro?.();
+      return;
+    }
+    await runCaptcha();
+    setVerified();
+    haptic('success'); confetti(); toast('Tasdiqlandi. Xush kelibsiz!');
+    boot(true);
+    openPromoFromLaunch();
+  } catch (error) {
+    console.error('Mini App initialization failed:', error);
+    await window.finishLoadingIntro?.();
+    $('#captcha').hidden = false;
+    document.body.classList.add('locked');
+    $('#capQ').textContent = 'Mini-ilovaga ulanib bo‘lmadi';
+    $('#capMsg').textContent = error.message || 'Internetni tekshirib qayta urinib ko‘ring.';
+  }
+}
+document.addEventListener('visibilitychange', () => {
+  if (!LIVE_MODE || document.hidden) return;
+  refreshLiveData().then(() => {
+    renderHome();
+    renderProfile();
+    renderPrize();
+    if ($('#page-friends').classList.contains('active')) renderFriends();
+    if ($('#page-top').classList.contains('active')) renderTop();
+  }).catch((error) => toast(error.message));
+});
+startApp();
+  </script>
+</body>
+</html>

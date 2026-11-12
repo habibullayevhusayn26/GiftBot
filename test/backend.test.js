@@ -632,13 +632,33 @@ test('API health is public but game data rejects unsigned requests', async (t) =
   assert.match(miniAppHtml, /id="rulesContent"/);
   assert.match(miniAppHtml, /id="promoCode"/);
   assert.match(miniAppHtml, /id="redeemPromoBtn"/);
+  assert.match(miniAppHtml, /<style>[\s\S]*?\.profile-sheet__panel[\s\S]*?<\/style>/);
+  assert.match(miniAppHtml, /<script>[\s\S]*?\/promos\/redeem[\s\S]*?<\/script>/);
+  assert.doesNotMatch(miniAppHtml, /href="style\.css"|src="app\.js"/);
   const homePage = miniAppHtml.match(/<section class="page active" id="page-home">([\s\S]*?)<\/section>/)?.[1] || '';
   const profilePage = miniAppHtml.match(/<section class="page" id="page-me">([\s\S]*?)<\/section>/)?.[1] || '';
   assert.match(homePage, /id="promoCard"/);
   assert.doesNotMatch(profilePage, /id="promoCard"/);
+  const bundledMiniApp = await fetch(`${baseUrl}/mini-app.html`);
+  assert.equal(bundledMiniApp.status, 200);
+  assert.equal(await bundledMiniApp.text(), miniAppHtml);
   const miniAppScript = await fetch(`${baseUrl}/app.js`);
   assert.equal(miniAppScript.status, 200);
-  assert.match(await miniAppScript.text(), /\/promos\/redeem/);
+  const miniAppScriptText = await miniAppScript.text();
+  assert.match(miniAppScriptText, /\/promos\/redeem/);
+  const inlineScripts = [...miniAppHtml.matchAll(/<script>([\s\S]*?)<\/script>/g)];
+  assert.equal(inlineScripts.length, 2);
+  assert.doesNotThrow(() => new Function(inlineScripts[1][1]));
+  assert.match(inlineScripts[1][1], /function decorateProfileCard\(/);
+  assert.match(inlineScripts[1][1], /function openProfileSheet\(/);
+  const elementIds = [...miniAppHtml.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
+  assert.equal(new Set(elementIds).size, elementIds.length);
+  const referencedIds = [...inlineScripts[1][1].matchAll(/\$\('#([\w-]+)'\)/g)].map((match) => match[1]);
+  assert.deepEqual([...new Set(referencedIds.filter((id) => !elementIds.includes(id)))], []);
+  const miniAppStylesheet = await fetch(`${baseUrl}/style.css`);
+  assert.equal(miniAppStylesheet.status, 200);
+  const inlineStylesheet = miniAppHtml.match(/<style>([\s\S]*?)<\/style>/)?.[1];
+  assert.ok(inlineStylesheet?.trim().startsWith((await miniAppStylesheet.text()).trim()));
   const unauthenticatedPromo = await fetch(`${baseUrl}/api/promos/redeem`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
