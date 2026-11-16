@@ -418,6 +418,11 @@ function buildAdminUserQuery(search) {
   return { username: new RegExp(`^${username}$`, 'i') };
 }
 
+function hasSingleCaptchaAnswer(answers) {
+  return Array.isArray(answers) && answers.length === 1 &&
+    answers.every((answer) => typeof answer === 'string' && answer.length <= 10);
+}
+
 function validateDonationAmount(value) {
   if (typeof value !== 'number' && typeof value !== 'string') {
     throw new Error(`Donat miqdori 1 dan ${MAX_DONATION_STARS.toLocaleString('en-US')} Stars gacha butun son bo‘lishi kerak.`);
@@ -1527,8 +1532,8 @@ function createApplication(options = {}) {
   }
 
   async function createChallenge(userId) {
-    const kinds = shuffle(['name', 'math', 'count']);
-    const rounds = kinds.map(makeCaptchaRound);
+    const kind = ['name', 'math', 'count'][crypto.randomInt(3)];
+    const rounds = [makeCaptchaRound(kind)];
     const id = crypto.randomBytes(24).toString('hex');
     await Captcha.create({
       _id: id,
@@ -3197,8 +3202,7 @@ function createApplication(options = {}) {
   app.post('/api/captcha/verify', authenticate, asyncRoute(async (req, res) => {
     const user = await ensureUser(req.telegram, req.startParam, req);
     const { id, answers } = req.body || {};
-    if (typeof id !== 'string' || !Array.isArray(answers) || answers.length !== 3 ||
-        answers.some((answer) => typeof answer !== 'string' || answer.length > 10)) {
+    if (typeof id !== 'string' || !hasSingleCaptchaAnswer(answers)) {
       throw new HttpError(400, 'Tekshiruv javoblari noto‘g‘ri formatda.');
     }
     const challenge = await Captcha.findOneAndUpdate(
@@ -3206,7 +3210,7 @@ function createApplication(options = {}) {
       { $set: { used: true } },
       { new: true },
     ).lean();
-    if (!challenge) throw new HttpError(400, 'Tekshiruv muddati tugagan. Yangi savollarni oling.');
+    if (!challenge) throw new HttpError(400, 'Tekshiruv muddati tugagan. Yangi savol oling.');
     if (!answers.every((answer, index) => answer === challenge.answers[index])) {
       res.json({ ok: false });
       return;
@@ -3713,6 +3717,7 @@ module.exports = {
   decorateTelegramReplyMarkup,
   sendTelegramGift,
   buildAdminUserQuery,
+  hasSingleCaptchaAnswer,
   telegramUserMention,
   buildRewardAnnouncement,
   toTelegramHtml,

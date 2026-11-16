@@ -2269,8 +2269,8 @@ function tickCountdown() {
 setInterval(tickCountdown, 1000);
 
 /* ---------- Captcha (birinchi ochilganda) ----------
-   Har bir foydalanuvchiga ALOHIDA, tasodifiy tuziladigan savollar beriladi:
-   - 3 ta savol (rasm nomi bo'yicha topish, misol, rasmlarni sanash), tartibi har safar boshqacha
+   Har bir foydalanuvchiga bitta tasodifiy savol beriladi:
+   - rasm nomini topish, misol yechish yoki rasmlarni sanash
    - 40 ta rasm fondidan har safar yangi 9 talik to'plam, variantlar tartibi aralash
    - tasodifiy "nonce" + foydalanuvchi ID dan seed olinadi
    DIQQAT: haqiqiy kafolat serverda bo'ladi. API_URL yoqilganda savollarni server
@@ -2337,8 +2337,9 @@ function buildChallenge() {
       return { q: 'Nechta rasm bor?', big: e.repeat(n), image: e, count: n, num: true, options: nums(opts), answer: String(n), key: `${e}${n}:${opts.join(',')}` };
     },
   };
-  const rounds = shuf(['name', 'math', 'count']).map((t) => makers[t]());
-  return { id: `${tgUser.id}:${[...nonce].map((n) => n.toString(36)).join('')}`, local: true, rounds, sig: rounds.map((r) => r.key).join('|') };
+  const kind = ['name', 'math', 'count'][rint(0, 2)];
+  const rounds = [makers[kind]()];
+  return { id: `${tgUser.id}:${[...nonce].map((n) => n.toString(36)).join('')}`, local: true, rounds, sig: rounds[0].key };
 }
 
 function playChallenge(ch) {
@@ -2406,7 +2407,7 @@ async function runCaptcha() {
     document.body.classList.add('locked');
     if (await playChallenge(ch)) break;
     fails++;
-    $('#capMsg').textContent = "Noto'g'ri. Siz uchun yangi savollar tayyorlandi";
+    $('#capMsg').textContent = "Noto'g'ri. Siz uchun yangi savol tayyorlandi";
     if (fails % 3 === 0) {
       for (let s = 8; s > 0; s--) { $('#capMsg').textContent = `Ko'p xato. ${s} soniya kuting`; await new Promise((r) => setTimeout(r, 1000)); }
       $('#capMsg').textContent = '';

@@ -29,6 +29,7 @@ const {
   decorateTelegramReplyMarkup,
   sendTelegramGift,
   buildAdminUserQuery,
+  hasSingleCaptchaAnswer,
   telegramUserMention,
   buildRewardAnnouncement,
   toTelegramHtml,
@@ -259,6 +260,13 @@ test('admin user search accepts Telegram IDs or exact usernames only', () => {
   assert.equal(usernameQuery.username.test('example_user2'), false);
   for (const search of ['', '@bad', 'user name', '.*']) {
     assert.throws(() => buildAdminUserQuery(search), /Telegram ID yoki @username/);
+  }
+});
+
+test('CAPTCHA accepts exactly one bounded answer', () => {
+  assert.equal(hasSingleCaptchaAnswer(['3']), true);
+  for (const answers of [[], ['1', '2', '3'], ['12345678901'], [1], null]) {
+    assert.equal(hasSingleCaptchaAnswer(answers), false);
   }
 });
 
