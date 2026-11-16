@@ -907,6 +907,208 @@ meta[name=theme-color] { content: #000; }
 .profile-sheet__close { z-index: 4; top: 14px; right: 14px; background: rgba(0,0,0,.25); }
 .profile-sheet__content .tgp { padding-top: 48px; }
 .profile-sheet__stats { padding: 14px 16px 0; }
+
+/* ============================================================
+   iOS 27 — yangilangan dizayn qatlami (faqat ko'rinish)
+   Yumshoq shisha, katta radiuslar, qulay bosish joylari
+   ============================================================ */
+:root {
+  --r: 28px;
+  --ease: cubic-bezier(.32, .72, 0, 1);
+  --glass: rgba(44, 46, 62, .46);
+  --glass-border: rgba(255,255,255,.14);
+  --label2: rgba(235,235,245,.68);
+  --label3: rgba(235,235,245,.42);
+  --sep: rgba(255,255,255,.10);
+}
+html, body { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", system-ui, sans-serif; font-feature-settings: "tnum" 0; letter-spacing: -.011em; }
+body { font-size: 17px; line-height: 1.35; }
+
+/* Fon: chuqur, sokin, kam shovqinli */
+.bg { background: radial-gradient(120% 70% at 50% -10%, #14213d 0%, #05070d 62%, #000 100%) !important; }
+.blob { opacity: .38; filter: blur(80px); mix-blend-mode: screen; }
+.b1 { background: rgba(10,132,255,.45); }
+.b2 { background: rgba(120,90,255,.34); }
+.b3 { background: rgba(48,209,200,.26); }
+
+/* Sahifa va sarlavhalar */
+#app { padding-left: 16px; padding-right: 16px; padding-bottom: calc(var(--safe-b) + 128px); }
+#app .large-title { padding: 24px 6px 12px; }
+#app .large-title .sub { font-size: 15px; font-weight: 500; color: var(--label2); }
+#app .large-title h1 { font-size: 36px; font-weight: 800; letter-spacing: -.9px; line-height: 1.08; }
+#app .section { margin: 28px 8px 12px; font-size: 22px; font-weight: 700; letter-spacing: -.4px; color: var(--label); }
+
+/* Kartalar: katta radius, ichki yorug'lik qirrasi */
+#app .card, #app .list, #app .invite, #app .profile, #app .prize, #page-home .hero, #page-home #taskList {
+  border-radius: var(--r) !important;
+  background: linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.03)), var(--glass) !important;
+  -webkit-backdrop-filter: blur(32px) saturate(190%); backdrop-filter: blur(32px) saturate(190%);
+  border: .5px solid var(--glass-border) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.28), inset 0 0 0 .5px rgba(255,255,255,.04), 0 18px 40px -12px rgba(0,0,0,.55) !important;
+}
+#page-home .hero { padding: 26px 22px 22px; }
+#page-home .balance span { font-size: clamp(48px, 14vw, 60px); font-weight: 800; letter-spacing: -2.2px; }
+#page-home .balance small { font-size: 16px; padding: 6px 12px; }
+#app .label, #page-home .label { font-size: 15px; font-weight: 500; }
+#app .progress, #page-home .progress { height: 10px; border-radius: 999px; }
+#page-home .stats b { font-size: 22px; font-weight: 700; }
+#page-home .stats span { font-size: 13px; }
+
+/* Ro'yxat qatorlari: qulay bosish (>=64px), o'qiladigan matn */
+.item, #page-home #taskList .item, #app #friendList .item, #app #topList .item { min-height: 68px; padding: 13px 16px; gap: 14px; }
+.txt b, #page-home #taskList .txt b { font-size: 17px; font-weight: 600; }
+.txt span, #page-home #taskList .txt span { font-size: 14px; line-height: 1.3; }
+.item + .item::before, #page-home #taskList .item + .item::before, #app #friendList .item + .item::before, #app #topList .item + .item::before { left: 74px !important; right: 16px !important; background: var(--sep) !important; }
+.item:active, #page-home #taskList .item:active { background: rgba(255,255,255,.08) !important; }
+.ico, #page-home #taskList .ico { width: 46px; height: 46px; border-radius: 14px !important; }
+
+/* Tugmalar: 56px, to'liq kapsula, aniq bosilish effekti */
+#app .btn, #page-home .glass-btn { height: 56px; font-size: 17px; font-weight: 600; transition: transform .4s var(--ease), filter .2s; }
+#app .btn:active, #page-home .glass-btn:active { transform: scale(.96); filter: brightness(1.08); opacity: 1; }
+.pill, #page-home #taskList .pill { min-width: 84px; height: 40px; padding: 0 18px; font-size: 15px; font-weight: 600; }
+.pill:active { transform: scale(.94); }
+
+/* Maydonlar */
+.donation-input, .task-proof, #app .link-box { font-size: 17px; border-radius: 18px; }
+.donation-input { height: 54px; }
+.task-proof { font-size: 16px; padding: 10px 12px; }
+.donation-label, .donation-hint { font-size: 14px; }
+.milestone-heading p, .donation-heading p { font-size: 14px; }
+
+/* Segmented control */
+.segmented { padding: 4px; border-radius: 999px; }
+.segmented button { height: 38px; font-size: 15px; font-weight: 600; }
+
+/* Podium va reyting */
+#app .pod, #app .pod.p1 { border-radius: 26px !important; }
+.pod b { font-size: 14px; }
+.pod span { font-size: 13px; }
+.rank { font-size: 16px; }
+
+/* Pastki tab bar: kattaroq, suzuvchi, o'qiladigan yorliqlar */
+.tabbar {
+  width: min(calc(100% - 32px), 400px); height: 72px; bottom: calc(var(--safe-b) + 10px);
+  background: linear-gradient(180deg, rgba(255,255,255,.18), rgba(255,255,255,.05)), rgba(28,30,44,.46) !important;
+  -webkit-backdrop-filter: blur(40px) saturate(230%); backdrop-filter: blur(40px) saturate(230%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.55), inset 0 0 26px rgba(255,255,255,.06), 0 22px 50px rgba(0,0,0,.55);
+}
+.tabbar button { gap: 3px; transition: transform .35s var(--ease), color .2s; }
+.tabbar svg { width: 27px; height: 27px; }
+.tabbar span { font-size: 11px; font-weight: 600; letter-spacing: 0; }
+.tab-thumb { transition-timing-function: var(--ease); }
+
+/* Oynalar: sheet, captcha, toast */
+.profile-sheet__panel { border-radius: 44px 44px 0 0; transition: transform .5s var(--ease); }
+.cap-card { border-radius: 40px; }
+.cap-grid button { border-radius: 26px; }
+.toast { font-size: 15px; font-weight: 600; padding: 12px 20px; }
+
+/* Sahifa almashish: yumshoq, kam harakat */
+.page { animation-duration: .5s; animation-timing-function: var(--ease); }
+
+/* Qulaylik */
+:focus-visible { outline: 3px solid rgba(10,132,255,.9); outline-offset: 2px; }
+button, .item, .pill { touch-action: manipulation; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
+@media (max-width: 360px) {
+  #app .large-title h1 { font-size: 31px; }
+  .pill, #page-home #taskList .pill { min-width: 72px; padding: 0 14px; }
+}
+
+/* ============================================================
+   Barcha tugmalar — qoraytirilgan "suyuq shisha" (Telegram iOS uslubi)
+   Qora shaffof asos, ingichka yorug' hoshiya, rangli belgi/matn
+   ============================================================ */
+:root {
+  --gb-bg: linear-gradient(180deg, rgba(255,255,255,.16) 0%, rgba(255,255,255,.04) 46%, rgba(255,255,255,.08) 100%), rgba(18,20,26,.62);
+  --gb-rim: inset 0 0 0 .5px rgba(255,255,255,.30), inset 0 1.5px 0 rgba(255,255,255,.42), inset 0 -1px 0 rgba(255,255,255,.10), inset 0 0 18px rgba(255,255,255,.05);
+  --gb-drop: 0 8px 22px rgba(0,0,0,.45), 0 1px 3px rgba(0,0,0,.4);
+  --gb-blur: blur(24px) saturate(200%);
+}
+
+/* Asosiy va ikkilamchi tugmalar */
+#app .btn, #app .btn.primary, #app .btn.tinted, #page-home .glass-btn, #app .promo-card .glass-btn, #app .donation .glass-btn,
+#page-rules .rules-back, .profile-sheet__close, .rules-retry {
+  background: var(--gb-bg) !important;
+  -webkit-backdrop-filter: var(--gb-blur); backdrop-filter: var(--gb-blur);
+  border: 0 !important;
+  box-shadow: var(--gb-rim), var(--gb-drop) !important;
+  text-shadow: 0 1px 6px rgba(0,0,0,.35);
+}
+/* Asosiy tugma: ko'k nur bilan, yashil qalqon kabi rangli belgi */
+#app .btn.primary, #page-home .glass-btn, #app .promo-card .glass-btn, #app .donation .glass-btn {
+  color: #5ec2ff;
+  background: radial-gradient(120% 140% at 50% 0%, rgba(10,132,255,.34), rgba(10,132,255,0) 62%), var(--gb-bg) !important;
+  box-shadow: var(--gb-rim), inset 0 -10px 22px rgba(10,132,255,.14), 0 8px 26px rgba(10,132,255,.28), var(--gb-drop) !important;
+}
+#app .btn.tinted, #page-rules .rules-back, .rules-retry { color: #e9eefc; }
+.profile-sheet__close { color: #fff; }
+
+/* Kichik "pill" tugmalar */
+.pill, #page-home #taskList .pill {
+  background: radial-gradient(120% 140% at 50% 0%, rgba(10,132,255,.30), rgba(10,132,255,0) 66%), var(--gb-bg) !important;
+  -webkit-backdrop-filter: var(--gb-blur); backdrop-filter: var(--gb-blur);
+  border: 0 !important; color: #5ec2ff;
+  box-shadow: var(--gb-rim), 0 5px 14px rgba(0,0,0,.4) !important;
+}
+.pill.done, #page-home #taskList .pill.done {
+  color: #34d97b;
+  background: radial-gradient(120% 140% at 50% 0%, rgba(48,209,88,.34), rgba(48,209,88,0) 66%), var(--gb-bg) !important;
+  box-shadow: var(--gb-rim), inset 0 -8px 16px rgba(48,209,88,.12), 0 5px 14px rgba(48,209,88,.2) !important;
+}
+
+/* Bosilganda: shisha biroz yorishadi va siqiladi */
+#app .btn:active, #page-home .glass-btn:active, .pill:active, .profile-sheet__close:active, #page-rules .rules-back:active {
+  transform: scale(.94); filter: brightness(1.18);
+}
+
+/* Pastki tab bar: shisha plitka, tanlangani yashil/ko'k nurli */
+.tabbar {
+  background: var(--gb-bg) !important; border: 0 !important;
+  box-shadow: var(--gb-rim), 0 20px 46px rgba(0,0,0,.55) !important;
+}
+.tab-thumb {
+  background: radial-gradient(120% 140% at 50% 0%, rgba(10,132,255,.32), rgba(10,132,255,0) 70%), linear-gradient(180deg, rgba(255,255,255,.20), rgba(255,255,255,.06)), rgba(10,12,18,.5) !important;
+  border: 0 !important;
+  box-shadow: inset 0 0 0 .5px rgba(255,255,255,.34), inset 0 1.5px 0 rgba(255,255,255,.5), inset 0 -8px 18px rgba(10,132,255,.16), 0 4px 14px rgba(0,0,0,.35) !important;
+}
+.tabbar button.on { color: #5ec2ff; }
+.tabbar button.on svg { fill-opacity: .28; filter: drop-shadow(0 0 6px rgba(94,194,255,.55)); }
+
+/* Segmented control */
+.segmented { background: rgba(14,16,22,.6) !important; border: 0 !important; box-shadow: inset 0 0 0 .5px rgba(255,255,255,.2), inset 0 2px 6px rgba(0,0,0,.4) !important; }
+.thumb { background: var(--gb-bg) !important; box-shadow: var(--gb-rim), 0 3px 10px rgba(0,0,0,.4) !important; }
+
+/* Captcha tugmalari */
+.cap-grid button {
+  background: var(--gb-bg) !important; border: 0 !important;
+  box-shadow: var(--gb-rim), 0 6px 16px rgba(0,0,0,.4) !important;
+}
+.cap-grid button:active { filter: brightness(1.25); }
+.cap-grid button.wrong { background: radial-gradient(120% 140% at 50% 0%, rgba(255,69,58,.4), rgba(255,69,58,0) 70%), var(--gb-bg) !important; }
+
+/* Switch: yashil shisha */
+.switch i { background: rgba(14,16,22,.7) !important; box-shadow: inset 0 0 0 .5px rgba(255,255,255,.22), inset 0 2px 5px rgba(0,0,0,.4); }
+.switch input:checked + i, #app .switch input:checked + i { background: radial-gradient(120% 140% at 50% 0%, rgba(110,235,150,.45), rgba(48,209,88,0) 70%), #1f9d4d !important; }
+.switch i::after { background: linear-gradient(180deg, #fff, #e6ebf5); box-shadow: 0 2px 6px rgba(0,0,0,.4), inset 0 0 0 .5px rgba(0,0,0,.08); }
+
+/* Zich fon kerak bo'lsa (Reduce Transparency) */
+@media (prefers-reduced-transparency: reduce) {
+  #app .btn, #page-home .glass-btn, .pill, .tabbar, .cap-grid button, .profile-sheet__close, #page-rules .rules-back { background: #1b1e27 !important; backdrop-filter: none; -webkit-backdrop-filter: none; }
+}
+
+/* Yopish tugmasi: × belgisi doira markazida (matn o'rniga chiziqlardan chizilgan) */
+.profile-sheet__close {
+  width: 38px; height: 38px; padding: 0; font-size: 0 !important; line-height: 0; color: transparent !important; text-shadow: none !important; overflow: hidden;
+}
+.profile-sheet__close::before, .profile-sheet__close::after {
+  content: ""; position: absolute; top: 50%; left: 50%; width: 14px; height: 2px; border-radius: 2px; background: #fff;
+  box-shadow: 0 1px 4px rgba(0,0,0,.35);
+}
+.profile-sheet__close::before { transform: translate(-50%, -50%) rotate(45deg); }
+.profile-sheet__close::after { transform: translate(-50%, -50%) rotate(-45deg); }
   </style>
 </head>
 <body>
