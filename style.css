@@ -282,9 +282,9 @@ button { font-family: inherit; border: 0; background: none; color: inherit; curs
 .profile-sheet__close { position: absolute; top: 15px; right: 16px; width: 34px; height: 34px; border-radius: 50%; background: rgba(255,255,255,.09); color: var(--label2); font-size: 26px; line-height: 1; }
 .profile-sheet__content { text-align: center; }
 .profile-sheet__avatar { width: 92px; height: 92px; margin: 0 auto 14px; font-size: 38px; }
-.profile-sheet__name { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 0; font-size: 24px; letter-spacing: -.4px; }
-.profile-sheet__badge { width: 20px; height: 20px; flex: none; object-fit: contain; }
-.profile-sheet__badge--owner { width: 22px; height: 22px; }
+.profile-sheet__name { display: flex; align-items: center; justify-content: center; gap: 5px; margin: 0; font-size: 24px; line-height: 1.2; letter-spacing: -.4px; }
+.profile-sheet__badge { width: 1.35em; height: 1.35em; flex: none; object-fit: contain; }
+.profile-sheet__badge--owner { width: 1em; height: 1em; }
 .profile-sheet__badge--rank-1 { filter: hue-rotate(202deg) saturate(1.45) brightness(1.08); }
 .profile-sheet__badge--rank-2 { filter: grayscale(1) brightness(1.55) contrast(.9); }
 .profile-sheet__badge--rank-3 { filter: hue-rotate(188deg) saturate(1.1) brightness(.92); }

@@ -664,6 +664,12 @@ test('weekly podium uses rank numbers and the verification badge asset', () => {
   assert.ok(miniApp.indexOf('class="owner-badge"') < miniApp.indexOf('<b>${esc(x.name)}</b>'));
   assert.match(miniApp, /user\.isOwner \? '<img class="profile-sheet__badge profile-sheet__badge--owner"/);
   assert.match(miniApp, /user\.weeklyRank >= 1 && user\.weeklyRank <= 3/);
+  assert.match(miniApp, /\.profile-sheet__name \{[^}]*align-items: center[^}]*line-height: 1\.2/);
+  assert.match(miniApp, /\.profile-sheet__badge \{ width: 1\.35em; height: 1\.35em/);
+  assert.match(miniApp, /\.profile-sheet__badge--owner \{ width: 1em; height: 1em/);
+  assert.match(stylesheet, /\.profile-sheet__name \{[^}]*align-items: center[^}]*line-height: 1\.2/);
+  assert.match(stylesheet, /\.profile-sheet__badge \{ width: 1\.35em; height: 1\.35em/);
+  assert.match(stylesheet, /\.profile-sheet__badge--owner \{ width: 1em; height: 1em/);
   assert.ok(miniApp.indexOf('profile-sheet__badge--owner" src="/assets/owner.png"') < miniApp.indexOf('<span>${esc(user.name'));
   assert.ok(miniApp.indexOf('profile-sheet__badge--rank-${user.weeklyRank}" src="/assets/verify.png"') > miniApp.indexOf('<span>${esc(user.name'));
   assert.match(miniApp, /period === 'week' && x\.isOwner/);
