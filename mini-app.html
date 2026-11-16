@@ -297,6 +297,9 @@ button { font-family: inherit; border: 0; background: none; color: inherit; curs
 .profile-sheet__badge--rank-1 { filter: hue-rotate(202deg) saturate(1.45) brightness(1.08); }
 .profile-sheet__badge--rank-2 { filter: grayscale(1) brightness(1.55) contrast(.9); }
 .profile-sheet__badge--rank-3 { filter: hue-rotate(188deg) saturate(1.1) brightness(.92); }
+.lbrow-name { display: flex !important; min-width: 0; align-items: center; gap: 5px; }
+.lbrow-name-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lbrow-admin-badge { width: 17px; height: 17px; flex: none; object-fit: contain; }
 .profile-sheet__username { margin: 5px 0 22px; color: var(--label2); font-size: 14px; }
 .profile-sheet__stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; text-align: left; }
 .profile-sheet__stat { min-width: 0; padding: 14px; border: 1px solid rgba(255,255,255,.07); border-radius: 17px; background: rgba(255,255,255,.045); }
@@ -1892,7 +1895,7 @@ async function renderTop() {
     <div class="item lbrow${trigger ? ' profile-trigger' : ''}" ${trigger}>
       <span class="rank">${i + 4}</span>
       ${avatarMarkup(x, i + 3)}
-      <div class="txt"><b>${esc(x.name)}</b><span>${x.invited === undefined ? (x.username ? `@${esc(x.username)}` : 'Ishtirokchi') : `${x.invited} ta taklif`}</span></div>
+      <div class="txt"><b class="lbrow-name"><span class="lbrow-name-text">${esc(x.name)}</span>${x.isOwner ? '<img class="lbrow-admin-badge" src="/assets/owner.png" alt="Bot egasi" title="Bot egasi" />' : ''}</b><span>${x.invited === undefined ? (x.username ? `@${esc(x.username)}` : 'Ishtirokchi') : `${x.invited} ta taklif`}</span></div>
       <span class="score">${fmt(x.score)}</span>
     </div>`;
   }).join('');

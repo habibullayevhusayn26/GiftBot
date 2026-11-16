@@ -666,6 +666,8 @@ test('weekly podium uses rank numbers and the verification badge asset', () => {
   assert.ok(miniApp.indexOf('profile-sheet__badge--owner" src="/assets/owner.png"') < miniApp.indexOf('<span>${esc(user.name'));
   assert.ok(miniApp.indexOf('profile-sheet__badge--rank-${user.weeklyRank}" src="/assets/verify.png"') > miniApp.indexOf('<span>${esc(user.name'));
   assert.match(miniApp, /period === 'week' && x\.isOwner/);
+  assert.match(miniApp, /x\.isOwner \? '<img class="lbrow-admin-badge" src="\/assets\/owner\.png"/);
+  assert.match(miniApp, /<span class="lbrow-name-text">\$\{esc\(x\.name\)\}<\/span>/);
   assert.match(miniApp, /podium \.medal\.p1 \{ color: #ffd166/);
   assert.match(miniApp, /podium \.medal\.p2 \{ color: #d7e0ed/);
   assert.match(miniApp, /podium \.medal\.p3 \{ color: #e7a36f/);
