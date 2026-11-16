@@ -289,6 +289,19 @@ function telegramUserMention(userId, name) {
   return `\u0001${userId}:${encodedName}\u0002`;
 }
 
+function buildRewardAnnouncement({ heading, userId, userName, username, reward, detail = '' }) {
+  const recipient = `${telegramUserMention(userId, userName || 'Foydalanuvchi')}${username ? ` (@${username})` : ''}`;
+  return [
+    `🎉 ${heading}`,
+    '',
+    `👤 Mukofot egasi: ${recipient}`,
+    `🎁 Mukofot: ${reward}`,
+    detail ? `📌 ${detail}` : null,
+    '',
+    '👏 G‘olibimizni tabriklaymiz!',
+  ].filter((line) => line !== null).join('\n');
+}
+
 function getReferralGiftMilestones(referralCount) {
   if (!Number.isSafeInteger(referralCount) || referralCount < REFERRAL_GIFT_MILESTONE) return [];
   const milestones = [];
@@ -1536,6 +1549,36 @@ function createApplication(options = {}) {
     }
   }
 
+  async function announceRewardInNewsChannel({ userId, userName, username, heading, reward, detail }) {
+    if (!config.promoChannelId) {
+      console.error(`Reward announcement for user ${userId} skipped: no promo/news channel is configured.`);
+      return false;
+    }
+    try {
+      const channel = await Task.findOne({
+        _id: config.promoChannelId,
+        type: 'channel',
+        enabled: true,
+      }).select('chatId').lean();
+      if (!channel?.chatId) {
+        console.error(`Reward announcement for user ${userId} skipped: configured promo/news channel is unavailable.`);
+        return false;
+      }
+      await bot.telegram.sendMessage(channel.chatId, buildRewardAnnouncement({
+        heading,
+        userId,
+        userName,
+        username,
+        reward,
+        detail,
+      }));
+      return true;
+    } catch (error) {
+      console.error(`Could not announce reward for user ${userId} in the promo/news channel:`, error);
+      return false;
+    }
+  }
+
   async function deliverReferralGift(awardId, { retryFailed = false } = {}) {
     const filter = retryFailed
       ? { _id: awardId, status: { $in: ['pending', 'failed'] } }
@@ -1577,6 +1620,21 @@ function createApplication(options = {}) {
       );
       return false;
     }
+
+    let recipient;
+    try {
+      recipient = await User.findById(award.userId).select('firstName lastName username').lean();
+    } catch (error) {
+      console.error(`Could not load referral gift recipient ${award.userId} for the channel announcement:`, error);
+    }
+    await announceRewardInNewsChannel({
+      userId: award.userId,
+      userName: [recipient?.firstName, recipient?.lastName].filter(Boolean).join(' '),
+      username: recipient?.username,
+      heading: 'REFERRAL STARS GIFTI',
+      reward: `${config.referralGift?.emoji || '🎁'} · ${Number(award.giftStars).toLocaleString('uz-UZ')} Stars`,
+      detail: `${award.referralCount} ta tasdiqlangan do‘st taklifi uchun`,
+    });
 
     try {
       await ReferralGift.updateOne(
@@ -1857,7 +1915,8 @@ function createApplication(options = {}) {
       : '';
     await ctx.reply(
       `🆕 Promo-kodlar\nE’lon kanali: ${selectedChannel?.title || 'tanlanmagan'}\n` +
-      `Kanal tanlang, so‘ng kod yarating. Yaratishda kod limiti va coin mukofotini alohida kiritasiz.` +
+      `Kanal tanlang, so‘ng kod yarating. Yaratishda kod limiti va coin mukofotini alohida kiritasiz. ` +
+      `Berilgan haftalik sovrinlar va Stars giftlar ham shu kanalga e’lon qilinadi.` +
       recent,
       Markup.inlineKeyboard(rows),
     );
@@ -2587,7 +2646,7 @@ function createApplication(options = {}) {
       return;
     }
 
-    const user = await User.findById(intent.userId).select('_id').lean();
+    const user = await User.findById(intent.userId).select('_id firstName lastName username').lean();
     if (!user) {
       await AdminGift.updateOne(
         { _id: intent._id, status: 'sending' },
@@ -2635,6 +2694,15 @@ function createApplication(options = {}) {
         : `Gift yuborilgan-yuborilmagani noaniq: ${error.message}\nTakror yubormang — avval Telegram gift tarixini tekshiring.`);
       return;
     }
+
+    await announceRewardInNewsChannel({
+      userId: intent.userId,
+      userName: [user.firstName, user.lastName].filter(Boolean).join(' '),
+      username: user.username,
+      heading: 'ADMIN TOMONIDAN STARS SOVG‘ASI',
+      reward: `${intent.giftEmoji} · ${Number(intent.giftStars).toLocaleString('uz-UZ')} Stars`,
+      detail: 'Sovg‘a bot nomidan yuborildi',
+    });
 
     try {
       const sentGift = await AdminGift.findOneAndUpdate(
@@ -3088,7 +3156,23 @@ function createApplication(options = {}) {
       await ctx.reply('Sovrin topilmadi yoki allaqachon to‘langan.');
       return;
     }
-    await bot.telegram.sendMessage(award.userId, `Tabriklaymiz! ${Number(award.amount).toLocaleString('uz-UZ')} so‘mlik haftalik sovrin sizga yuborildi.`);
+    const winner = award.topTen?.find((user) => user.userId === award.userId);
+    try {
+      await bot.telegram.sendMessage(
+        award.userId,
+        `Tabriklaymiz! ${Number(award.amount).toLocaleString('uz-UZ')} so‘mlik haftalik sovrin sizga yuborildi.`,
+      );
+    } catch (error) {
+      console.error(`Weekly prize was marked paid but winner ${award.userId} could not be notified:`, error);
+    }
+    await announceRewardInNewsChannel({
+      userId: award.userId,
+      userName: winner?.name,
+      username: winner?.username,
+      heading: 'HAFTALIK SOVRIN SOHIBI',
+      reward: `${Number(award.amount).toLocaleString('uz-UZ')} so‘m`,
+      detail: `${Number(award.points).toLocaleString('uz-UZ')} ball bilan haftalik g‘olib`,
+    });
     await ctx.reply('Sovrin to‘langan deb belgilandi.');
   });
 
@@ -3630,6 +3714,7 @@ module.exports = {
   sendTelegramGift,
   buildAdminUserQuery,
   telegramUserMention,
+  buildRewardAnnouncement,
   toTelegramHtml,
   verifyTelegramInitData,
 };

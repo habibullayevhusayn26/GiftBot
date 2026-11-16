@@ -85,6 +85,9 @@ the bot to have purchased additional usernames on Fragment.
   costs are shown before sending and are paid from the bot's Stars balance.
   Gift attempts are recorded to prevent duplicate sends; if Telegram's result
   is ambiguous, check the bot's gift history before taking further action.
+- The channel selected under **Promo-kodlar** also receives formatted posts
+  when weekly prizes are marked paid and when admin or referral Stars gifts
+  are successfully sent. The bot needs permission to post in that channel.
 - In **Referral sovg‘asi**, an admin selects an available Telegram gift. For
   every 10 verified referrals (including the required-channel checks), the bot
   automatically sends that gift using its Telegram Stars balance. If no gift

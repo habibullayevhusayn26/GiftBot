@@ -30,6 +30,7 @@ const {
   sendTelegramGift,
   buildAdminUserQuery,
   telegramUserMention,
+  buildRewardAnnouncement,
   toTelegramHtml,
   verifyTelegramInitData,
 } = require('../server');
@@ -259,6 +260,22 @@ test('admin user search accepts Telegram IDs or exact usernames only', () => {
   for (const search of ['', '@bad', 'user name', '.*']) {
     assert.throws(() => buildAdminUserQuery(search), /Telegram ID yoki @username/);
   }
+});
+
+test('reward announcement is formatted and links the recipient safely', () => {
+  const announcement = buildRewardAnnouncement({
+    heading: 'HAFTALIK SOVRIN SOHIBI',
+    userId: '123456',
+    userName: 'Ali <Test>',
+    username: 'ali_test',
+    reward: '100 000 so‘m',
+    detail: '42 ball bilan haftalik g‘olib',
+  });
+  const html = toTelegramHtml(announcement);
+  assert.match(html, /HAFTALIK SOVRIN SOHIBI/);
+  assert.match(html, /<a href="tg:\/\/user\?id=123456">Ali &lt;Test&gt;<\/a> \(@ali_test\)/);
+  assert.match(html, /Mukofot: .*100 000 so‘m/);
+  assert.match(html, /42 ball bilan haftalik g‘olib/);
 });
 
 test('Stars donation amounts are positive whole numbers within the Bot API limit', () => {
