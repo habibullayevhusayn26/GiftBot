@@ -656,6 +656,7 @@ test('rules file and level badge animation are present and valid', () => {
 
 test('weekly podium uses rank numbers and the verification badge asset', () => {
   const miniApp = fs.readFileSync(path.join(__dirname, '..', 'mini-app.html'), 'utf8');
+  const stylesheet = fs.readFileSync(path.join(__dirname, '..', 'style.css'), 'utf8');
   const asset = fs.readFileSync(path.join(__dirname, '..', 'assets', 'verify.png'));
   const ownerAsset = fs.readFileSync(path.join(__dirname, '..', 'assets', 'owner.png'));
   assert.match(miniApp, /src="\/assets\/verify\.png"/);
@@ -668,6 +669,10 @@ test('weekly podium uses rank numbers and the verification badge asset', () => {
   assert.match(miniApp, /period === 'week' && x\.isOwner/);
   assert.match(miniApp, /x\.isOwner \? '<img class="lbrow-admin-badge" src="\/assets\/owner\.png"/);
   assert.match(miniApp, /<span class="lbrow-name-text">\$\{esc\(x\.name\)\}<\/span>/);
+  assert.match(miniApp, /\.lbrow-name \{[^}]*align-items: center/);
+  assert.match(miniApp, /\.lbrow-admin-badge \{ width: 22px; height: 22px/);
+  assert.match(stylesheet, /\.lbrow-name \{[^}]*align-items: center/);
+  assert.match(stylesheet, /\.lbrow-admin-badge \{ width: 22px; height: 22px/);
   assert.match(miniApp, /podium \.medal\.p1 \{ color: #ffd166/);
   assert.match(miniApp, /podium \.medal\.p2 \{ color: #d7e0ed/);
   assert.match(miniApp, /podium \.medal\.p3 \{ color: #e7a36f/);
