@@ -641,6 +641,56 @@ body {
 #page-rules .rules-retry { width: 100%; margin-top: 16px; }
 #page-rules .rules-retry[hidden] { display: none; }
 
+/* Reyting: nafis podium ranglari va yengil kirish animatsiyasi */
+#app .podium .pod.p1 {
+  border-color: rgba(255,209,102,.34);
+  background: radial-gradient(120% 90% at 50% 0, rgba(255,209,102,.2), transparent 72%), linear-gradient(160deg, rgba(255,209,102,.08), rgba(17,18,26,.68)) !important;
+  box-shadow: inset 0 1px 0 rgba(255,238,190,.22), 0 10px 30px rgba(255,190,70,.1);
+}
+#app .podium .pod.p2 {
+  border-color: rgba(208,222,242,.24);
+  background: radial-gradient(120% 90% at 50% 0, rgba(208,222,242,.14), transparent 72%), linear-gradient(160deg, rgba(208,222,242,.045), rgba(17,18,26,.68)) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.14), 0 8px 24px rgba(180,205,235,.055);
+}
+#app .podium .pod.p3 {
+  border-color: rgba(231,163,111,.26);
+  background: radial-gradient(120% 90% at 50% 0, rgba(231,163,111,.16), transparent 72%), linear-gradient(160deg, rgba(231,163,111,.055), rgba(17,18,26,.68)) !important;
+  box-shadow: inset 0 1px 0 rgba(255,225,199,.15), 0 8px 24px rgba(205,127,72,.06);
+}
+.leaderboard-entry {
+  animation: leaderboard-enter .48s cubic-bezier(.2,.72,.24,1) both;
+  animation-delay: calc(var(--leaderboard-enter-index, 0) * 48ms);
+}
+@keyframes leaderboard-enter {
+  from { opacity: 0; transform: translateY(9px) scale(.99); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.rank-movement {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 6px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 700;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+.lbrow-meta .rank-movement, .podium .rank-movement { margin-top: 0; font-size: 10px; }
+.lbrow-meta .rank-movement--up, .podium .rank-movement--up { color: #8af0bd; background: rgba(57,217,138,.1); border-color: rgba(57,217,138,.13); }
+.lbrow-meta .rank-movement--down, .podium .rank-movement--down { color: #ff9a9a; background: rgba(255,107,107,.1); border-color: rgba(255,107,107,.13); }
+.lbrow-meta .rank-movement--same, .podium .rank-movement--same { color: #b7c2d4; background: rgba(183,194,212,.08); border-color: rgba(183,194,212,.1); }
+.lbrow-meta .rank-movement--new, .podium .rank-movement--new { color: #9dcaff; background: rgba(90,168,255,.1); border-color: rgba(90,168,255,.14); }
+.lbrow-meta { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 7px; }
+.lbrow-meta > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.podium .pod-score { display: block; margin-top: 2px; }
+.podium .rank-movement { margin-top: 5px; }
+@media (prefers-reduced-motion: reduce) {
+  .leaderboard-entry { animation: none !important; }
+}
+
 
 /* ============================================================
    iOS 27 — Refined Liquid Glass
@@ -1160,6 +1210,7 @@ button, .item, .pill { touch-action: manipulation; }
 }
 .profile-sheet__close::before { transform: translate(-50%, -50%) rotate(45deg); }
 .profile-sheet__close::after { transform: translate(-50%, -50%) rotate(-45deg); }
+
   </style>
 </head>
 <body>
@@ -1851,6 +1902,22 @@ function renderFriends() {
 }
 
 let period = 'week';
+function rankMovementMarkup(user) {
+  if (!LIVE_MODE || period !== 'week') return '';
+  if (!Number.isInteger(user.previousRank)) {
+    return Number(user.score) > 0
+      ? '<i class="rank-movement rank-movement--new" aria-label="Yangi reyting ishtirokchisi">Yangi</i>'
+      : '';
+  }
+  if (user.rankChange > 0) {
+    return `<i class="rank-movement rank-movement--up" aria-label="O‘tgan haftaga nisbatan ${user.rankChange} pog‘ona yuqori" title="O‘tgan haftaga nisbatan ${user.rankChange} pog‘ona yuqori">↑ ${user.rankChange}</i>`;
+  }
+  if (user.rankChange < 0) {
+    const dropped = Math.abs(user.rankChange);
+    return `<i class="rank-movement rank-movement--down" aria-label="O‘tgan haftaga nisbatan ${dropped} pog‘ona past" title="O‘tgan haftaga nisbatan ${dropped} pog‘ona past">↓ ${dropped}</i>`;
+  }
+  return '<i class="rank-movement rank-movement--same" aria-label="O‘rni o‘zgarmadi" title="O‘rni o‘zgarmadi">→ 0</i>';
+}
 async function renderTop() {
   const donorsRequest = renderTopDonors();
   let data;
@@ -1874,7 +1941,7 @@ async function renderTop() {
   const pod = (x, rank, cls, position) => {
     const trigger = profileTriggerAttrs(x);
     return `
-    <div class="pod glass ${cls}${trigger ? ' profile-trigger' : ''}" ${trigger}>
+    <div class="pod glass ${cls} leaderboard-entry${trigger ? ' profile-trigger' : ''}" style="--leaderboard-enter-index:${position - 1}" ${trigger}>
       <span class="medal ${cls}" aria-label="${position}-o‘rin">${position}</span>
       ${avatarMarkup(x, rank)}
       <div class="pod-name">
@@ -1882,7 +1949,8 @@ async function renderTop() {
         <b>${esc(x.name)}</b>
         ${period === 'week' && x.userId ? `<img class="verify-badge ${cls}" src="/assets/verify.png" alt="${position}-o‘rin tasdiqlangan" title="${position}-o‘rin" />` : ''}
       </div>
-      <span>${fmt(x.score)}</span>
+      <span class="pod-score">${fmt(x.score)}</span>
+      ${rankMovementMarkup(x)}
     </div>`;
   };
   destroyAnimations($('#podium'));
@@ -1892,10 +1960,10 @@ async function renderTop() {
   const rows = data.slice(3).map((x, i) => {
     const trigger = profileTriggerAttrs(x);
     return `
-    <div class="item lbrow${trigger ? ' profile-trigger' : ''}" ${trigger}>
+    <div class="item lbrow leaderboard-entry${trigger ? ' profile-trigger' : ''}" style="--leaderboard-enter-index:${Math.min(i + 3, 10)}" ${trigger}>
       <span class="rank">${i + 4}</span>
       ${avatarMarkup(x, i + 3)}
-      <div class="txt"><b class="lbrow-name"><span class="lbrow-name-text">${esc(x.name)}</span>${x.isOwner ? '<img class="lbrow-admin-badge" src="/assets/owner.png" alt="Bot egasi" title="Bot egasi" />' : ''}</b><span>${x.invited === undefined ? (x.username ? `@${esc(x.username)}` : 'Ishtirokchi') : `${x.invited} ta taklif`}</span></div>
+      <div class="txt"><b class="lbrow-name"><span class="lbrow-name-text">${esc(x.name)}</span>${x.isOwner ? '<img class="lbrow-admin-badge" src="/assets/owner.png" alt="Bot egasi" title="Bot egasi" />' : ''}</b><span class="lbrow-meta"><span>${x.invited === undefined ? (x.username ? `@${esc(x.username)}` : 'Ishtirokchi') : `${x.invited} ta taklif`}</span>${rankMovementMarkup(x)}</span></div>
       <span class="score">${fmt(x.score)}</span>
     </div>`;
   }).join('');

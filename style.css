@@ -631,3 +631,53 @@ body {
 }
 #page-rules .rules-retry { width: 100%; margin-top: 16px; }
 #page-rules .rules-retry[hidden] { display: none; }
+
+/* Reyting: nafis podium ranglari va yengil kirish animatsiyasi */
+#app .podium .pod.p1 {
+  border-color: rgba(255,209,102,.34);
+  background: radial-gradient(120% 90% at 50% 0, rgba(255,209,102,.2), transparent 72%), linear-gradient(160deg, rgba(255,209,102,.08), rgba(17,18,26,.68)) !important;
+  box-shadow: inset 0 1px 0 rgba(255,238,190,.22), 0 10px 30px rgba(255,190,70,.1);
+}
+#app .podium .pod.p2 {
+  border-color: rgba(208,222,242,.24);
+  background: radial-gradient(120% 90% at 50% 0, rgba(208,222,242,.14), transparent 72%), linear-gradient(160deg, rgba(208,222,242,.045), rgba(17,18,26,.68)) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.14), 0 8px 24px rgba(180,205,235,.055);
+}
+#app .podium .pod.p3 {
+  border-color: rgba(231,163,111,.26);
+  background: radial-gradient(120% 90% at 50% 0, rgba(231,163,111,.16), transparent 72%), linear-gradient(160deg, rgba(231,163,111,.055), rgba(17,18,26,.68)) !important;
+  box-shadow: inset 0 1px 0 rgba(255,225,199,.15), 0 8px 24px rgba(205,127,72,.06);
+}
+.leaderboard-entry {
+  animation: leaderboard-enter .48s cubic-bezier(.2,.72,.24,1) both;
+  animation-delay: calc(var(--leaderboard-enter-index, 0) * 48ms);
+}
+@keyframes leaderboard-enter {
+  from { opacity: 0; transform: translateY(9px) scale(.99); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.rank-movement {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 6px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 700;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+.lbrow-meta .rank-movement, .podium .rank-movement { margin-top: 0; font-size: 10px; }
+.lbrow-meta .rank-movement--up, .podium .rank-movement--up { color: #8af0bd; background: rgba(57,217,138,.1); border-color: rgba(57,217,138,.13); }
+.lbrow-meta .rank-movement--down, .podium .rank-movement--down { color: #ff9a9a; background: rgba(255,107,107,.1); border-color: rgba(255,107,107,.13); }
+.lbrow-meta .rank-movement--same, .podium .rank-movement--same { color: #b7c2d4; background: rgba(183,194,212,.08); border-color: rgba(183,194,212,.1); }
+.lbrow-meta .rank-movement--new, .podium .rank-movement--new { color: #9dcaff; background: rgba(90,168,255,.1); border-color: rgba(90,168,255,.14); }
+.lbrow-meta { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 7px; }
+.lbrow-meta > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.podium .pod-score { display: block; margin-top: 2px; }
+.podium .rank-movement { margin-top: 5px; }
+@media (prefers-reduced-motion: reduce) {
+  .leaderboard-entry { animation: none !important; }
+}

@@ -11,6 +11,8 @@ const {
   getNextSundayAnnouncement,
   getNextDailyReminder,
   getWeekRange,
+  getPreviousWeekRange,
+  addLeaderboardMovement,
   normalizePromoCode,
   isReferralEligible,
   getTelegramRetryDelay,
@@ -89,6 +91,36 @@ test('weekly boundaries follow the Tashkent Monday-to-Monday week', () => {
   assert.equal(range.start.toISOString(), '2026-11-01T19:00:00.000Z');
   assert.equal(range.end.toISOString(), '2026-11-08T19:00:00.000Z');
   assert.equal(getTashkentDate(new Date('2026-11-07T19:00:00Z')), '2026-11-08');
+});
+
+test('previous weekly leaderboard range is the completed Tashkent week', () => {
+  const range = getPreviousWeekRange(new Date('2026-11-07T17:59:59Z'));
+  assert.equal(range.start.toISOString(), '2026-10-25T19:00:00.000Z');
+  assert.equal(range.end.toISOString(), '2026-11-01T19:00:00.000Z');
+});
+
+test('leaderboard movement compares ranks against last week and marks first-time scorers', () => {
+  const current = [
+    { userId: 'a', score: 40 },
+    { userId: 'b', score: 30 },
+    { userId: 'c', score: 10 },
+    { userId: 'd', score: 0 },
+    { userId: 'e', score: 5 },
+  ];
+  const previous = [
+    { userId: 'b', score: 50 },
+    { userId: 'a', score: 20 },
+    { userId: 'c', score: 8 },
+    { userId: 'd', score: 5 },
+  ];
+  const rows = addLeaderboardMovement(current, previous);
+  assert.deepEqual(rows.map(({ previousRank, rankChange }) => ({ previousRank, rankChange })), [
+    { previousRank: 2, rankChange: 1 },
+    { previousRank: 1, rankChange: -1 },
+    { previousRank: 3, rankChange: 0 },
+    { previousRank: 4, rankChange: 0 },
+    { previousRank: null, rankChange: null },
+  ]);
 });
 
 test('Tashkent calendar-day ranges include the full local day', () => {
@@ -673,6 +705,16 @@ test('weekly podium uses rank numbers and the verification badge asset', () => {
   assert.ok(miniApp.indexOf('profile-sheet__badge--owner" src="/assets/owner.png"') < miniApp.indexOf('<span>${esc(user.name'));
   assert.ok(miniApp.indexOf('profile-sheet__badge--rank-${user.weeklyRank}" src="/assets/verify.png"') > miniApp.indexOf('<span>${esc(user.name'));
   assert.match(miniApp, /period === 'week' && x\.isOwner/);
+  assert.match(miniApp, /rankMovementMarkup\(x\)/);
+  assert.match(miniApp, /class="pod glass \$\{cls\} leaderboard-entry/);
+  assert.match(miniApp, /class="item lbrow leaderboard-entry/);
+  assert.match(miniApp, /rank-movement--up/);
+  assert.match(miniApp, /rank-movement--down/);
+  assert.match(miniApp, /rank-movement--new/);
+  assert.match(miniApp, /rank-movement--same/);
+  assert.match(miniApp, /\.podium \.pod\.p1 \{/);
+  assert.match(miniApp, /\.podium \.pod\.p2 \{/);
+  assert.match(miniApp, /\.podium \.pod\.p3 \{/);
   assert.match(miniApp, /x\.isOwner \? '<img class="lbrow-admin-badge" src="\/assets\/owner\.png"/);
   assert.match(miniApp, /<span class="lbrow-name-text">\$\{esc\(x\.name\)\}<\/span>/);
   assert.match(miniApp, /\.lbrow-name \{[^}]*align-items: center/);

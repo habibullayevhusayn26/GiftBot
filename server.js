@@ -620,6 +620,30 @@ function getWeekRange(date = new Date()) {
   return { start, end: new Date(start.getTime() + 7 * DAY_MS) };
 }
 
+function getPreviousWeekRange(date = new Date()) {
+  const currentWeek = getWeekRange(date);
+  return {
+    start: new Date(currentWeek.start.getTime() - 7 * DAY_MS),
+    end: currentWeek.start,
+  };
+}
+
+function addLeaderboardMovement(rows, previousRows) {
+  const previousRanks = new Map(previousRows.map((row, index) => [
+    String(row.userId),
+    { rank: index + 1, score: Number(row.score) || 0 },
+  ]));
+  return rows.map((row, index) => {
+    const previous = previousRanks.get(String(row.userId));
+    const previousRank = previous && previous.score > 0 ? previous.rank : null;
+    return {
+      ...row,
+      previousRank,
+      rankChange: previousRank === null ? null : previousRank - (index + 1),
+    };
+  });
+}
+
 function verifyTelegramInitData(initData, botToken, now = Date.now()) {
   if (!initData || !botToken) return null;
   const params = new URLSearchParams(initData);
@@ -1361,9 +1385,19 @@ function createApplication(options = {}) {
   }
 
   async function leaderboard(period, currentUserId) {
-    const range = period === 'week' ? getWeekRange() : null;
-    const leaderboardRows = await User.aggregate(buildLeaderboardPipeline(Ledger.collection.name, range));
-    const rows = markLeaderboardOwners(leaderboardRows, config.adminIds.values().next().value);
+    const now = new Date();
+    const range = period === 'week' ? getWeekRange(now) : null;
+    const previousRange = period === 'week' ? getPreviousWeekRange(now) : null;
+    const [leaderboardRows, previousRows] = await Promise.all([
+      User.aggregate(buildLeaderboardPipeline(Ledger.collection.name, range)),
+      previousRange
+        ? User.aggregate(buildLeaderboardPipeline(Ledger.collection.name, previousRange))
+        : Promise.resolve(null),
+    ]);
+    const rowsWithMovement = previousRows
+      ? addLeaderboardMovement(leaderboardRows, previousRows)
+      : leaderboardRows;
+    const rows = markLeaderboardOwners(rowsWithMovement, config.adminIds.values().next().value);
     const currentUser = await User.findById(currentUserId).select('referralReviewStatus banned').lean();
     const ownScore = currentUser?.banned || currentUser?.referralReviewStatus === 'rejected'
       ? 0
@@ -3722,6 +3756,8 @@ module.exports = {
   normalizePromoCode,
   isReferralEligible,
   getWeekRange,
+  getPreviousWeekRange,
+  addLeaderboardMovement,
   getTelegramRetryDelay,
   getReferralGiftMilestones,
   getReferralGiftProgress,
