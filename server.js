@@ -372,6 +372,14 @@ function markLeaderboardOwners(rows, ownerId) {
   }));
 }
 
+function getProfileBadges(weeklyLeaders, userId, ownerId) {
+  const rank = weeklyLeaders.findIndex((row) => String(row.userId) === String(userId)) + 1;
+  return {
+    isOwner: String(userId) === String(ownerId),
+    weeklyRank: rank > 0 ? rank : null,
+  };
+}
+
 function buildTopDonorsPipeline(donationCollection, userCollection, limit = 10) {
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
     throw new Error('Top donor limit must be an integer from 1 to 100.');
@@ -3271,12 +3279,17 @@ function createApplication(options = {}) {
     if (!user || !user.verified || user.banned || user.referralReviewStatus === 'rejected') {
       throw new HttpError(404, 'Foydalanuvchi profili topilmadi.');
     }
+    const weeklyLeaders = await User.aggregate([
+      ...buildLeaderboardPipeline(Ledger.collection.name, getWeekRange()),
+      { $limit: 3 },
+    ]);
     res.json({
       id: userId,
       name: [user.firstName, user.lastName].filter(Boolean).join(' '),
       username: user.username,
       photoUrl: user.photoUrl,
       balance: await getPointTotal(userId),
+      ...getProfileBadges(weeklyLeaders, userId, config.adminIds.values().next().value),
     });
   }));
 
@@ -3720,6 +3733,7 @@ module.exports = {
   isValidStarDonationPayment,
   buildLeaderboardPipeline,
   markLeaderboardOwners,
+  getProfileBadges,
   buildTopDonorsPipeline,
   isActiveChatMember,
   decorateTelegramButton,

@@ -25,6 +25,7 @@ const {
   buildLeaderboardPipeline,
   buildTopDonorsPipeline,
   markLeaderboardOwners,
+  getProfileBadges,
   isActiveChatMember,
   decorateTelegramButton,
   decorateTelegramReplyMarkup,
@@ -220,6 +221,13 @@ test('leaderboard marks only the first configured admin as the bot owner', () =>
   ], '12345');
   assert.deepEqual(rows.map((row) => row.isOwner), [true, false]);
   assert.deepEqual(markLeaderboardOwners([{ userId: '12345' }], '67890')[0].isOwner, false);
+});
+
+test('profile badges mark the owner and weekly top three ranks', () => {
+  const leaders = [{ userId: '12345' }, { userId: '23456' }, { userId: '34567' }];
+  assert.deepEqual(getProfileBadges(leaders, '12345', '12345'), { isOwner: true, weeklyRank: 1 });
+  assert.deepEqual(getProfileBadges(leaders, '23456', '12345'), { isOwner: false, weeklyRank: 2 });
+  assert.deepEqual(getProfileBadges(leaders, '99999', '12345'), { isOwner: false, weeklyRank: null });
 });
 
 test('top donor pipeline sums only successful Stars donations and returns named top users', () => {
@@ -653,6 +661,10 @@ test('weekly podium uses rank numbers and the verification badge asset', () => {
   assert.match(miniApp, /src="\/assets\/verify\.png"/);
   assert.match(miniApp, /src="\/assets\/owner\.png"/);
   assert.ok(miniApp.indexOf('class="owner-badge"') < miniApp.indexOf('<b>${esc(x.name)}</b>'));
+  assert.match(miniApp, /user\.isOwner \? '<img class="profile-sheet__badge profile-sheet__badge--owner"/);
+  assert.match(miniApp, /user\.weeklyRank >= 1 && user\.weeklyRank <= 3/);
+  assert.ok(miniApp.indexOf('profile-sheet__badge--owner" src="/assets/owner.png"') < miniApp.indexOf('<span>${esc(user.name'));
+  assert.ok(miniApp.indexOf('profile-sheet__badge--rank-${user.weeklyRank}" src="/assets/verify.png"') > miniApp.indexOf('<span>${esc(user.name'));
   assert.match(miniApp, /period === 'week' && x\.isOwner/);
   assert.match(miniApp, /podium \.medal\.p1 \{ color: #ffd166/);
   assert.match(miniApp, /podium \.medal\.p2 \{ color: #d7e0ed/);
