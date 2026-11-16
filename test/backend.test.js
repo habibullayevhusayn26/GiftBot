@@ -28,6 +28,7 @@ const {
   buildTopDonorsPipeline,
   markLeaderboardOwners,
   getProfileBadges,
+  getLevelProgress,
   isActiveChatMember,
   decorateTelegramButton,
   decorateTelegramReplyMarkup,
@@ -260,6 +261,18 @@ test('profile badges mark the owner and weekly top three ranks', () => {
   assert.deepEqual(getProfileBadges(leaders, '12345', '12345'), { isOwner: true, weeklyRank: 1 });
   assert.deepEqual(getProfileBadges(leaders, '23456', '12345'), { isOwner: false, weeklyRank: 2 });
   assert.deepEqual(getProfileBadges(leaders, '99999', '12345'), { isOwner: false, weeklyRank: null });
+});
+
+test('profile level progress reports current level, remaining points, and max level', () => {
+  assert.deepEqual(getLevelProgress(0), {
+    level: 1, nextLevel: 2, levelProgress: 0, levelRemaining: 100, levelProgressPercent: 0,
+  });
+  assert.deepEqual(getLevelProgress(150), {
+    level: 2, nextLevel: 3, levelProgress: 50, levelRemaining: 150, levelProgressPercent: 25,
+  });
+  assert.deepEqual(getLevelProgress(6000), {
+    level: 7, nextLevel: null, levelProgress: 0, levelRemaining: 0, levelProgressPercent: 100,
+  });
 });
 
 test('top donor pipeline sums only successful Stars donations and returns named top users', () => {
@@ -696,6 +709,10 @@ test('weekly podium uses rank numbers and the verification badge asset', () => {
   assert.ok(miniApp.indexOf('class="owner-badge"') < miniApp.indexOf('<b>${esc(x.name)}</b>'));
   assert.match(miniApp, /user\.isOwner \? '<img class="profile-sheet__badge profile-sheet__badge--owner"/);
   assert.match(miniApp, /user\.weeklyRank >= 1 && user\.weeklyRank <= 3/);
+  assert.match(miniApp, /Haftalik o‘rni/);
+  assert.match(miniApp, /Tasdiqlangan takliflar/);
+  assert.match(miniApp, /profile-level-progress/);
+  assert.match(miniApp, /<div class="profile-sheet__stat"><span>Telegram ID<\/span><b>\$\{esc\(user\.id\)\}<\/b><\/div>/);
   assert.match(miniApp, /\.profile-sheet__name \{[^}]*align-items: center[^}]*line-height: 1\.2/);
   assert.match(miniApp, /\.profile-sheet__badge \{ width: 1\.35em; height: 1\.35em/);
   assert.match(miniApp, /\.profile-sheet__badge--owner \{ width: 1em; height: 1em/);

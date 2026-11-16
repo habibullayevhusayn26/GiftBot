@@ -380,6 +380,20 @@ function getProfileBadges(weeklyLeaders, userId, ownerId) {
   };
 }
 
+function getLevelProgress(balance) {
+  const points = Math.max(0, Number(balance) || 0);
+  const level = 1 + LEVEL_THRESHOLDS.filter((threshold) => points >= threshold).length;
+  const previousThreshold = level > 1 ? LEVEL_THRESHOLDS[level - 2] : 0;
+  const nextLevel = LEVEL_THRESHOLDS[level - 1] ? level + 1 : null;
+  const nextThreshold = nextLevel === null ? null : LEVEL_THRESHOLDS[level - 1];
+  const levelProgress = nextThreshold === null ? 0 : points - previousThreshold;
+  const levelRemaining = nextThreshold === null ? 0 : nextThreshold - points;
+  const levelProgressPercent = nextThreshold === null
+    ? 100
+    : Math.min(100, Math.floor((levelProgress / (nextThreshold - previousThreshold)) * 100));
+  return { level, nextLevel, levelProgress, levelRemaining, levelProgressPercent };
+}
+
 function buildTopDonorsPipeline(donationCollection, userCollection, limit = 10) {
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
     throw new Error('Top donor limit must be an integer from 1 to 100.');
@@ -3313,17 +3327,28 @@ function createApplication(options = {}) {
     if (!user || !user.verified || user.banned || user.referralReviewStatus === 'rejected') {
       throw new HttpError(404, 'Foydalanuvchi profili topilmadi.');
     }
-    const weeklyLeaders = await User.aggregate([
-      ...buildLeaderboardPipeline(Ledger.collection.name, getWeekRange()),
-      { $limit: 3 },
+    const weekRange = getWeekRange();
+    const [balance, weeklyPoints, confirmedReferrals, weeklyLeaders] = await Promise.all([
+      getPointTotal(userId),
+      getPointTotal(userId, weekRange),
+      User.countDocuments({ invitedBy: userId, referralRewarded: true }),
+      User.aggregate(buildLeaderboardPipeline(Ledger.collection.name, weekRange)),
     ]);
+    const { levelProgressPercent, ...levelProgress } = getLevelProgress(balance);
+    const weekRank = weeklyPoints > 0
+      ? weeklyLeaders.findIndex((row) => String(row.userId) === userId) + 1
+      : null;
     res.json({
       id: userId,
       name: [user.firstName, user.lastName].filter(Boolean).join(' '),
       username: user.username,
       photoUrl: user.photoUrl,
-      balance: await getPointTotal(userId),
+      balance,
+      confirmedReferrals,
+      ...levelProgress,
+      levelProgressPercent,
       ...getProfileBadges(weeklyLeaders, userId, config.adminIds.values().next().value),
+      weeklyRank: weekRank > 0 ? weekRank : null,
     });
   }));
 
@@ -3770,6 +3795,7 @@ module.exports = {
   buildLeaderboardPipeline,
   markLeaderboardOwners,
   getProfileBadges,
+  getLevelProgress,
   buildTopDonorsPipeline,
   isActiveChatMember,
   decorateTelegramButton,

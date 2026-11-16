@@ -302,9 +302,13 @@ button { font-family: inherit; border: 0; background: none; color: inherit; curs
 .lbrow-admin-badge { width: 22px; height: 22px; flex: none; object-fit: contain; }
 .profile-sheet__username { margin: 5px 0 22px; color: var(--label2); font-size: 14px; }
 .profile-sheet__stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; text-align: left; }
+.profile-sheet__stat--level { grid-column: 1 / -1; }
 .profile-sheet__stat { min-width: 0; padding: 14px; border: 1px solid rgba(255,255,255,.07); border-radius: 17px; background: rgba(255,255,255,.045); }
 .profile-sheet__stat span { display: block; margin-bottom: 6px; color: var(--label2); font-size: 12px; }
 .profile-sheet__stat b { display: block; overflow-wrap: anywhere; font-size: 16px; font-variant-numeric: tabular-nums; }
+.profile-level-progress { height: 7px; margin-top: 10px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,.1); }
+.profile-level-progress i { display: block; width: 0; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #7d8cff, #5ac8ff); transition: width .45s ease; }
+.profile-level-copy { margin-top: 6px; color: var(--label2); font-size: 11px; }
 body.profile-open { overflow: hidden; }
 .promo-card { margin-top: 16px; }
 .promo-icon { color: #c69aff; background: rgba(169,107,255,.14); }
@@ -1770,6 +1774,12 @@ function profileTriggerAttrs(user) {
     balance: user.balance ?? user.score ?? 0,
     isOwner: Boolean(user.isOwner),
     weeklyRank: user.weeklyRank ?? null,
+    confirmedReferrals: user.confirmedReferrals ?? null,
+    level: user.level ?? null,
+    nextLevel: user.nextLevel ?? null,
+    levelProgress: user.levelProgress ?? null,
+    levelRemaining: user.levelRemaining ?? null,
+    levelProgressPercent: user.levelProgressPercent ?? null,
   });
   return `data-profile-id="${esc(userId)}" role="button" tabindex="0" aria-label="${esc(user.name || 'Foydalanuvchi')} profilini ko‘rish"`;
 }
@@ -2051,7 +2061,7 @@ function renderProfileSheet(user) {
       <i class="tgp-pattern" aria-hidden="true"></i>
       <div class="tgp-avatar-wrap">
         ${avatarMarkup({ name: user.name, photoUrl: user.photoUrl }, 0, 'avatar profile-sheet__avatar')}
-        <span class="tgp-tag">ID #${esc(user.id)}</span>
+        <span class="tgp-tag">${Number.isInteger(user.level) ? `${user.level}-daraja` : 'Foydalanuvchi'}</span>
       </div>
       <h2 class="profile-sheet__name" id="profileSheetName">
         ${user.isOwner ? '<img class="profile-sheet__badge profile-sheet__badge--owner" src="/assets/owner.png" alt="Bot egasi" title="Bot egasi" />' : ''}
@@ -2062,8 +2072,17 @@ function renderProfileSheet(user) {
       <span class="tgp-pill">${fmt(user.balance)} coin</span>
     </div>
     <div class="profile-sheet__stats">
+      <div class="profile-sheet__stat"><span>Haftalik o‘rni</span><b>${Number.isInteger(user.weeklyRank) ? `#${user.weeklyRank}` : '—'}</b></div>
+      <div class="profile-sheet__stat"><span>Tasdiqlangan takliflar</span><b>${Number.isSafeInteger(user.confirmedReferrals) ? fmt(user.confirmedReferrals) : '—'}</b></div>
       <div class="profile-sheet__stat"><span>Telegram ID</span><b>${esc(user.id)}</b></div>
-      <div class="profile-sheet__stat"><span>To‘plagan ball</span><b>${fmt(user.balance)} coin</b></div>
+      <div class="profile-sheet__stat profile-sheet__stat--level">
+        <span>Daraja ${Number.isInteger(user.level) ? user.level : '—'}</span>
+        <b>${user.nextLevel ? `Keyingi darajagacha ${fmt(user.levelRemaining)} coin` : user.level ? 'Eng yuqori daraja' : 'Ma’lumot yo‘q'}</b>
+        <div class="profile-level-progress" role="progressbar" aria-label="Daraja progressi" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Number.isInteger(user.levelProgressPercent) ? user.levelProgressPercent : 0}">
+          <i style="width:${Number.isInteger(user.levelProgressPercent) ? user.levelProgressPercent : 0}%"></i>
+        </div>
+        <div class="profile-level-copy">${Number.isInteger(user.levelProgressPercent) ? `${user.levelProgressPercent}%` : 'Progress mavjud emas'}</div>
+      </div>
     </div>`;
   mountAvatarImages(content);
 }
