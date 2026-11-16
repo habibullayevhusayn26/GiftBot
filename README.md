@@ -80,6 +80,11 @@ the bot to have purchased additional usernames on Fragment.
   send a text announcement to all users in the bot database. New users receive
   an admin notification with a clickable name, including users without a
   Telegram username.
+- In **Foydalanuvchini qidirish**, admins can look up a bot user by Telegram ID
+  or exact `@username`, then choose and confirm a Telegram Stars gift. Gift
+  costs are shown before sending and are paid from the bot's Stars balance.
+  Gift attempts are recorded to prevent duplicate sends; if Telegram's result
+  is ambiguous, check the bot's gift history before taking further action.
 - In **Referral sovg‘asi**, an admin selects an available Telegram gift. For
   every 10 verified referrals (including the required-channel checks), the bot
   automatically sends that gift using its Telegram Stars balance. If no gift

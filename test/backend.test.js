@@ -28,6 +28,7 @@ const {
   decorateTelegramButton,
   decorateTelegramReplyMarkup,
   sendTelegramGift,
+  buildAdminUserQuery,
   telegramUserMention,
   toTelegramHtml,
   verifyTelegramInitData,
@@ -247,6 +248,17 @@ test('Telegram gift sends use the Bot API user_id and gift_id fields', async () 
   assert.deepEqual(request, ['sendGift', { user_id: 123456, gift_id: 'gift-id' }]);
   assert.throws(() => sendTelegramGift(bot, 'not-an-id', 'gift-id'), /must be numeric/);
   assert.throws(() => sendTelegramGift(bot, '123456', ''), /gift ID is required/);
+});
+
+test('admin user search accepts Telegram IDs or exact usernames only', () => {
+  assert.deepEqual(buildAdminUserQuery(' 123456 '), { _id: '123456' });
+  const usernameQuery = buildAdminUserQuery(' @Example_User ');
+  assert.deepEqual(Object.keys(usernameQuery), ['username']);
+  assert.equal(usernameQuery.username.test('example_user'), true);
+  assert.equal(usernameQuery.username.test('example_user2'), false);
+  for (const search of ['', '@bad', 'user name', '.*']) {
+    assert.throws(() => buildAdminUserQuery(search), /Telegram ID yoki @username/);
+  }
 });
 
 test('Stars donation amounts are positive whole numbers within the Bot API limit', () => {

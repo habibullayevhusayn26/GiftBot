@@ -395,6 +395,16 @@ function sendTelegramGift(bot, userId, giftId) {
   });
 }
 
+function buildAdminUserQuery(search) {
+  const value = typeof search === 'string' ? search.trim() : '';
+  if (/^\d{1,20}$/.test(value)) return { _id: value };
+  const username = value.replace(/^@/, '');
+  if (!/^[a-z][a-z0-9_]{4,31}$/i.test(username)) {
+    throw new Error('Telegram ID yoki @username kiriting.');
+  }
+  return { username: new RegExp(`^${username}$`, 'i') };
+}
+
 function validateDonationAmount(value) {
   if (typeof value !== 'number' && typeof value !== 'string') {
     throw new Error(`Donat miqdori 1 dan ${MAX_DONATION_STARS.toLocaleString('en-US')} Stars gacha butun son bo‘lishi kerak.`);
@@ -700,6 +710,18 @@ const referralGiftSchema = new mongoose.Schema({
   sentAt: { type: Date, default: null },
 }, { timestamps: true, versionKey: false });
 
+const adminGiftSchema = new mongoose.Schema({
+  _id: { type: String },
+  adminId: { type: String, required: true },
+  userId: { type: String, required: true },
+  giftId: { type: String, required: true },
+  giftStars: { type: Number, min: 1, required: true },
+  giftEmoji: { type: String, default: '🎁' },
+  status: { type: String, enum: ['pending', 'sending', 'sent', 'failed', 'unknown', 'cancelled'], default: 'pending' },
+  error: { type: String, default: '' },
+  sentAt: { type: Date, default: null },
+}, { timestamps: true, versionKey: false });
+
 const donationSchema = new mongoose.Schema({
   _id: { type: String },
   userId: { type: String, required: true, index: true },
@@ -746,6 +768,7 @@ const Captcha = mongoose.model('Captcha', captchaSchema);
 const WeeklyAward = mongoose.model('WeeklyAward', weeklyAwardSchema);
 const Setting = mongoose.model('Setting', settingSchema);
 const ReferralGift = mongoose.model('ReferralGift', referralGiftSchema);
+const AdminGift = mongoose.model('AdminGift', adminGiftSchema);
 const Donation = mongoose.model('Donation', donationSchema);
 const AccountSignal = mongoose.model('AccountSignal', accountSignalSchema);
 const Promo = mongoose.model('Promo', promoSchema);
@@ -836,6 +859,7 @@ function createApplication(options = {}) {
   const pendingAdminInputs = new Map();
   const pendingChannelSelections = new Map();
   const referralGiftCatalogs = new Map();
+  const adminGiftCatalogs = new Map();
   const promoAnnouncementUpdates = new Map();
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
@@ -1665,11 +1689,14 @@ function createApplication(options = {}) {
   };
 
   async function showAdminUser(ctx, userId) {
-    if (!/^\d{1,20}$/.test(String(userId))) {
-      await ctx.reply('Telegram ID faqat raqamlardan iborat bo‘lishi kerak.');
+    let query;
+    try {
+      query = buildAdminUserQuery(String(userId));
+    } catch (error) {
+      await ctx.reply(error.message);
       return;
     }
-    const user = await User.findById(String(userId)).lean();
+    const user = await User.findOne(query).lean();
     if (!user) {
       await ctx.reply('Bunday foydalanuvchi topilmadi.');
       return;
@@ -1692,6 +1719,7 @@ function createApplication(options = {}) {
         Markup.button.callback('➖ Coin ayirish', `user_adjust_sub_${user._id}`),
       ],
       [Markup.button.callback('👥 Taklif qilganlarini ko‘rish', `user_referrals_${user._id}`)],
+      [Markup.button.callback('🎁 Stars gift yuborish', `user_gift_${user._id}`)],
       [Markup.button.callback(user.banned ? '🔓 Blokdan chiqarish' : '🚫 Bloklash', `user_ban_${user._id}`)],
     ];
     if (user.referralReviewStatus === 'pending') {
@@ -1706,6 +1734,55 @@ function createApplication(options = {}) {
       `Telegram ID: ${user._id}\nCoin balansi: ${balance}\nTaklif qilgan: ${inviterLine}\n` +
       `Taklif qilganlar: ${referralCount}\nTekshiruv: ${user.verified ? 'tasdiqlangan' : 'kutilmoqda'}\n` +
       `Holati: ${user.banned ? 'bloklangan' : 'faol'}${referralLine}`,
+      Markup.inlineKeyboard(rows),
+    );
+  }
+
+  async function showAdminGiftSelection(ctx, userId, page = 0, refresh = false) {
+    const user = await User.findById(String(userId)).select('_id firstName lastName username').lean();
+    if (!user) {
+      await ctx.reply('Foydalanuvchi topilmadi.');
+      return;
+    }
+
+    const adminId = String(ctx.from.id);
+    let catalog = adminGiftCatalogs.get(adminId);
+    if (refresh || !catalog || catalog.userId !== user._id) {
+      try {
+        const result = await bot.telegram.callApi('getAvailableGifts', {});
+        const gifts = (result.gifts || []).filter((gift) =>
+          Number.isSafeInteger(gift.star_count) && gift.star_count > 0 &&
+          (gift.remaining_count == null || gift.remaining_count > 0));
+        catalog = { userId: user._id, gifts };
+        adminGiftCatalogs.set(adminId, catalog);
+      } catch (error) {
+        console.error('Could not load gifts for an admin user gift:', error.message);
+        await ctx.reply(`Telegram giftlar ro‘yxatini olib bo‘lmadi: ${error.message}`);
+        return;
+      }
+    }
+
+    const pageSize = 8;
+    const rows = [];
+    for (let index = page * pageSize; index < Math.min(catalog.gifts.length, (page + 1) * pageSize); index += 1) {
+      const gift = catalog.gifts[index];
+      rows.push([Markup.button.callback(
+        `${gift.sticker?.emoji || '🎁'} · ${gift.star_count} Stars`,
+        `admingift_select_${user._id}_${index}`,
+      )]);
+    }
+    const navigation = [];
+    if (page > 0) navigation.push(Markup.button.callback('⬅️ Oldingi', `admingift_page_${user._id}_${page - 1}`));
+    if ((page + 1) * pageSize < catalog.gifts.length) {
+      navigation.push(Markup.button.callback('Keyingi ➡️', `admingift_page_${user._id}_${page + 1}`));
+    }
+    if (navigation.length) rows.push(navigation);
+    rows.push([Markup.button.callback('🔄 Giftlarni yangilash', `user_gift_${user._id}`)]);
+    rows.push([Markup.button.callback('⬅️ Foydalanuvchi', `user_show_${user._id}`)]);
+    await ctx.reply(
+      `🎁 ${[user.firstName, user.lastName].filter(Boolean).join(' ')}${user.username ? ` (@${user.username})` : ''}\n` +
+      `ID: ${user._id}\n\nYubormoqchi bo‘lgan Stars giftni tanlang. Narxi bot balansidan yechiladi.` +
+      (catalog.gifts.length ? '' : '\nHozircha pullik gift mavjud emas.'),
       Markup.inlineKeyboard(rows),
     );
   }
@@ -2380,7 +2457,7 @@ function createApplication(options = {}) {
     await ctx.answerCbQuery();
     await promptAdminInput(ctx, {
       kind: 'user_search',
-      prompt: 'Foydalanuvchining Telegram ID raqamini yuboring.',
+      prompt: 'Foydalanuvchining Telegram ID raqami yoki @username’ini yuboring.',
     });
   });
   bot.action('admin_referral_reviews', adminOnly, async (ctx) => {
@@ -2444,6 +2521,134 @@ function createApplication(options = {}) {
   bot.action(/^user_show_(\d{1,20})$/, adminOnly, async (ctx) => {
     await ctx.answerCbQuery();
     await showAdminUser(ctx, ctx.match[1]);
+  });
+  bot.action(/^user_gift_(\d{1,20})$/, adminOnly, async (ctx) => {
+    await ctx.answerCbQuery();
+    await showAdminGiftSelection(ctx, ctx.match[1], 0, true);
+  });
+  bot.action(/^admingift_page_(\d{1,20})_(\d+)$/, adminOnly, async (ctx) => {
+    await ctx.answerCbQuery();
+    await showAdminGiftSelection(ctx, ctx.match[1], Number(ctx.match[2]));
+  });
+  bot.action(/^admingift_select_(\d{1,20})_(\d+)$/, adminOnly, async (ctx) => {
+    await ctx.answerCbQuery();
+    const userId = ctx.match[1];
+    const catalog = adminGiftCatalogs.get(String(ctx.from.id));
+    const gift = catalog?.userId === userId ? catalog.gifts[Number(ctx.match[2])] : null;
+    if (!gift || !gift.id) {
+      await ctx.reply('Gift tanlovi eskirgan. Foydalanuvchi sahifasidan giftlar ro‘yxatini yangilang.');
+      return;
+    }
+    const user = await User.findById(userId).select('_id firstName lastName username').lean();
+    if (!user) {
+      await ctx.reply('Foydalanuvchi topilmadi.');
+      return;
+    }
+    const intent = await AdminGift.create({
+      _id: crypto.randomUUID(),
+      adminId: String(ctx.from.id),
+      userId,
+      giftId: String(gift.id),
+      giftStars: gift.star_count,
+      giftEmoji: gift.sticker?.emoji || '🎁',
+    });
+    const fullName = [user.firstName, user.lastName].filter(Boolean).join(' ');
+    await ctx.reply(
+      `${intent.giftEmoji} ${intent.giftStars} Starslik giftni ${fullName}${user.username ? ` (@${user.username})` : ''} ` +
+      `(ID ${userId}) ga bot balansidan yuborishni tasdiqlaysizmi?`,
+      Markup.inlineKeyboard([[
+        Markup.button.callback('✅ Ha, yuborish', `admingift_send_${intent._id}`),
+        Markup.button.callback('Bekor qilish', `admingift_cancel_${intent._id}`),
+      ]]),
+    );
+  });
+  bot.action(/^admingift_cancel_([a-f0-9-]{36})$/, adminOnly, async (ctx) => {
+    await ctx.answerCbQuery();
+    const intent = await AdminGift.findOneAndUpdate(
+      { _id: ctx.match[1], adminId: String(ctx.from.id), status: 'pending' },
+      { $set: { status: 'cancelled' } },
+      { new: true },
+    ).lean();
+    await ctx.reply(intent ? 'Gift yuborish bekor qilindi.' : 'Bu gift tanlovi allaqachon yakunlangan.');
+  });
+  bot.action(/^admingift_send_([a-f0-9-]{36})$/, adminOnly, async (ctx) => {
+    await ctx.answerCbQuery();
+    const adminId = String(ctx.from.id);
+    const intent = await AdminGift.findOneAndUpdate(
+      { _id: ctx.match[1], adminId, status: 'pending' },
+      { $set: { status: 'sending', error: '' } },
+      { new: true },
+    ).lean();
+    if (!intent) {
+      const previous = await AdminGift.findOne({ _id: ctx.match[1], adminId }).select('status').lean();
+      await ctx.reply(previous?.status === 'sending' || previous?.status === 'sent'
+        ? 'Bu gift allaqachon yuborilmoqda yoki yuborilgan.'
+        : 'Bu gift tanlovi eskirgan yoki bekor qilingan.');
+      return;
+    }
+
+    const user = await User.findById(intent.userId).select('_id').lean();
+    if (!user) {
+      await AdminGift.updateOne(
+        { _id: intent._id, status: 'sending' },
+        { $set: { status: 'failed', error: 'Foydalanuvchi topilmadi.' } },
+      );
+      await ctx.reply('Foydalanuvchi topilmadi, gift yuborilmadi.');
+      return;
+    }
+
+    let availableGift;
+    try {
+      const result = await bot.telegram.callApi('getAvailableGifts', {});
+      availableGift = (result.gifts || []).find((gift) => String(gift.id) === intent.giftId);
+    } catch (error) {
+      await AdminGift.updateOne(
+        { _id: intent._id, status: 'sending' },
+        { $set: { status: 'pending', error: String(error.message || error).slice(0, 500) } },
+      );
+      console.error('Could not verify an admin-selected gift before sending:', error.message);
+      await ctx.reply(`Gift holatini tekshirib bo‘lmadi, yuborilmadi. Qayta urinib ko‘ring: ${error.message}`);
+      return;
+    }
+    if (!availableGift || !Number.isSafeInteger(availableGift.star_count) ||
+        availableGift.star_count !== intent.giftStars ||
+        (availableGift.remaining_count != null && availableGift.remaining_count <= 0)) {
+      await AdminGift.updateOne(
+        { _id: intent._id, status: 'sending' },
+        { $set: { status: 'failed', error: 'Gift endi mavjud emas yoki uning narxi o‘zgargan.' } },
+      );
+      await ctx.reply('Bu gift endi mavjud emas yoki narxi o‘zgargan. Yangi gift tanlang; hech narsa yuborilmadi.');
+      return;
+    }
+
+    try {
+      await sendTelegramGift(bot, intent.userId, intent.giftId);
+    } catch (error) {
+      const status = error.response ? 'failed' : 'unknown';
+      await AdminGift.updateOne(
+        { _id: intent._id, status: 'sending' },
+        { $set: { status, error: String(error.message || error).slice(0, 500) } },
+      );
+      console.error(`Admin gift ${intent._id} to ${intent.userId} ended as ${status}:`, error.message);
+      await ctx.reply(status === 'failed'
+        ? `Telegram giftni yubormadi: ${error.message}`
+        : `Gift yuborilgan-yuborilmagani noaniq: ${error.message}\nTakror yubormang — avval Telegram gift tarixini tekshiring.`);
+      return;
+    }
+
+    try {
+      const sentGift = await AdminGift.findOneAndUpdate(
+        { _id: intent._id, status: 'sending' },
+        { $set: { status: 'sent', sentAt: new Date(), error: '' } },
+        { new: true },
+      ).lean();
+      if (!sentGift) throw new Error('Gift holati yuborilgandan keyin yangilanmadi.');
+    } catch (error) {
+      console.error(`Gift ${intent._id} was accepted by Telegram but its status could not be saved:`, error);
+      await ctx.reply('Telegram giftni yubordi, ammo yuborilgan holatini saqlab bo‘lmadi. Takror yubormang; gift tarixini tekshiring.');
+      return;
+    }
+    await ctx.reply(`${intent.giftEmoji} ${intent.giftStars} Starslik gift yuborildi. Qabul qiluvchi ID: ${intent.userId}.`);
   });
   bot.action('admin_promos', adminOnly, async (ctx) => {
     await ctx.answerCbQuery();
@@ -3314,7 +3519,7 @@ async function start() {
   if (!process.env.MONGODB_URI) throw new Error('MONGODB_URI is required.');
   await mongoose.connect(process.env.MONGODB_URI);
   await Promise.all([
-    User, Ledger, Task, Claim, Captcha, WeeklyAward, Setting, ReferralGift, Donation,
+    User, Ledger, Task, Claim, Captcha, WeeklyAward, Setting, ReferralGift, AdminGift, Donation,
     AccountSignal, Promo, PromoRedemption,
   ].map((model) => model.init()));
   await ensureSeedTasks();
@@ -3423,6 +3628,7 @@ module.exports = {
   decorateTelegramButton,
   decorateTelegramReplyMarkup,
   sendTelegramGift,
+  buildAdminUserQuery,
   telegramUserMention,
   toTelegramHtml,
   verifyTelegramInitData,
