@@ -365,6 +365,13 @@ function buildLeaderboardPipeline(ledgerCollection, range = null) {
   ];
 }
 
+function markLeaderboardOwners(rows, ownerId) {
+  return rows.map((row) => ({
+    ...row,
+    isOwner: String(row.userId) === String(ownerId),
+  }));
+}
+
 function buildTopDonorsPipeline(donationCollection, userCollection, limit = 10) {
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
     throw new Error('Top donor limit must be an integer from 1 to 100.');
@@ -1347,7 +1354,8 @@ function createApplication(options = {}) {
 
   async function leaderboard(period, currentUserId) {
     const range = period === 'week' ? getWeekRange() : null;
-    const rows = await User.aggregate(buildLeaderboardPipeline(Ledger.collection.name, range));
+    const leaderboardRows = await User.aggregate(buildLeaderboardPipeline(Ledger.collection.name, range));
+    const rows = markLeaderboardOwners(leaderboardRows, config.adminIds.values().next().value);
     const currentUser = await User.findById(currentUserId).select('referralReviewStatus banned').lean();
     const ownScore = currentUser?.banned || currentUser?.referralReviewStatus === 'rejected'
       ? 0
@@ -3711,6 +3719,7 @@ module.exports = {
   createDonationInvoiceLink,
   isValidStarDonationPayment,
   buildLeaderboardPipeline,
+  markLeaderboardOwners,
   buildTopDonorsPipeline,
   isActiveChatMember,
   decorateTelegramButton,

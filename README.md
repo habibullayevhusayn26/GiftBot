@@ -74,6 +74,8 @@ the bot to have purchased additional usernames on Fragment.
 - The leaderboard compares points earned during the current Tashkent week or
   all time. Every CAPTCHA-verified user is shown, including users with zero
   points in the selected period.
+- On the weekly leaderboard, the first Telegram ID in `ADMIN_IDS` is treated as
+  the bot owner and shown with the owner badge before their name.
 - `/admin` is restricted to `ADMIN_IDS`. Its button-based panel manages pending
   reviews, weekly awards, tasks, channels, point rewards, and the Instagram URL.
   The panel also shows subscriber and leaderboard statistics and lets admins

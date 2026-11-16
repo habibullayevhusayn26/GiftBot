@@ -24,6 +24,7 @@ const {
   isValidStarDonationPayment,
   buildLeaderboardPipeline,
   buildTopDonorsPipeline,
+  markLeaderboardOwners,
   isActiveChatMember,
   decorateTelegramButton,
   decorateTelegramReplyMarkup,
@@ -210,6 +211,15 @@ test('leaderboard includes every verified user and gives users without points a 
 
   const allTimePipeline = buildLeaderboardPipeline('ledgers');
   assert.equal('createdAt' in allTimePipeline[1].$lookup.pipeline[0].$match, false);
+});
+
+test('leaderboard marks only the first configured admin as the bot owner', () => {
+  const rows = markLeaderboardOwners([
+    { userId: '12345', name: 'Owner' },
+    { userId: '67890', name: 'Admin' },
+  ], '12345');
+  assert.deepEqual(rows.map((row) => row.isOwner), [true, false]);
+  assert.deepEqual(markLeaderboardOwners([{ userId: '12345' }], '67890')[0].isOwner, false);
 });
 
 test('top donor pipeline sums only successful Stars donations and returns named top users', () => {
@@ -639,13 +649,18 @@ test('rules file and level badge animation are present and valid', () => {
 test('weekly podium uses rank numbers and the verification badge asset', () => {
   const miniApp = fs.readFileSync(path.join(__dirname, '..', 'mini-app.html'), 'utf8');
   const asset = fs.readFileSync(path.join(__dirname, '..', 'assets', 'verify.png'));
+  const ownerAsset = fs.readFileSync(path.join(__dirname, '..', 'assets', 'owner.png'));
   assert.match(miniApp, /src="\/assets\/verify\.png"/);
+  assert.match(miniApp, /src="\/assets\/owner\.png"/);
+  assert.ok(miniApp.indexOf('class="owner-badge"') < miniApp.indexOf('<b>${esc(x.name)}</b>'));
+  assert.match(miniApp, /period === 'week' && x\.isOwner/);
   assert.match(miniApp, /podium \.medal\.p1 \{ color: #ffd166/);
   assert.match(miniApp, /podium \.medal\.p2 \{ color: #d7e0ed/);
   assert.match(miniApp, /podium \.medal\.p3 \{ color: #e7a36f/);
   assert.match(miniApp, /period === 'week' && x\.userId/);
   assert.match(miniApp, /'p2', 2\).*'p1', 1\).*'p3', 3\)/s);
   assert.equal(asset.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
+  assert.equal(ownerAsset.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
 });
 
 test('API health is public but game data rejects unsigned requests', async (t) => {

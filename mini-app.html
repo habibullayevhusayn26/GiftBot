@@ -1018,6 +1018,14 @@ body { font-size: 17px; line-height: 1.35; }
 .pod-name .verify-badge.p2 { filter: grayscale(1) brightness(1.55) contrast(.9); }
 .pod-name .verify-badge.p3 { filter: hue-rotate(188deg) saturate(1.1) brightness(.92); }
 .pod.p1 .verify-badge { width: 19px; height: 19px; }
+.pod-name .owner-badge {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  object-fit: contain;
+  vertical-align: middle;
+}
+.pod.p1 .owner-badge { width: 20px; height: 20px; }
 .rank { font-size: 16px; }
 
 /* Pastki tab bar: kattaroq, suzuvchi, o'qiladigan yorliqlar */
@@ -1860,6 +1868,7 @@ async function renderTop() {
       <span class="medal ${cls}" aria-label="${position}-o‘rin">${position}</span>
       ${avatarMarkup(x, rank)}
       <div class="pod-name">
+        ${period === 'week' && x.isOwner ? '<img class="owner-badge" src="/assets/owner.png" alt="Bot egasi" title="Bot egasi" />' : ''}
         <b>${esc(x.name)}</b>
         ${period === 'week' && x.userId ? `<img class="verify-badge ${cls}" src="/assets/verify.png" alt="${position}-o‘rin tasdiqlangan" title="${position}-o‘rin" />` : ''}
       </div>
