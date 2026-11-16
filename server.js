@@ -2888,6 +2888,7 @@ function createApplication(options = {}) {
   });
 
   app.get('/health', (req, res) => res.json({ ok: true }));
+  app.get('/cron', (req, res) => res.type('text/plain').send('OK'));
 
   app.get('/api/me', authenticate, asyncRoute(async (req, res) => {
     const user = await ensureUser(req.telegram, req.startParam, req);

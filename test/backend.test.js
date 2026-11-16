@@ -619,6 +619,10 @@ test('API health is public but game data rejects unsigned requests', async (t) =
   assert.equal(health.status, 200);
   assert.deepEqual(await health.json(), { ok: true });
 
+  const cron = await fetch(`${baseUrl}/cron`);
+  assert.equal(cron.status, 200);
+  assert.equal(await cron.text(), 'OK');
+
   const response = await fetch(`${baseUrl}/api/me`, {
     headers: { 'X-Telegram-Init-Data': 'user=%7B%22id%22%3A1%7D' },
   });
