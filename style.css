@@ -673,7 +673,6 @@ body {
 .lbrow-meta .rank-movement--up, .podium .rank-movement--up { color: #8af0bd; background: rgba(57,217,138,.1); border-color: rgba(57,217,138,.13); }
 .lbrow-meta .rank-movement--down, .podium .rank-movement--down { color: #ff9a9a; background: rgba(255,107,107,.1); border-color: rgba(255,107,107,.13); }
 .lbrow-meta .rank-movement--same, .podium .rank-movement--same { color: #b7c2d4; background: rgba(183,194,212,.08); border-color: rgba(183,194,212,.1); }
-.lbrow-meta .rank-movement--new, .podium .rank-movement--new { color: #9dcaff; background: rgba(90,168,255,.1); border-color: rgba(90,168,255,.14); }
 .lbrow-meta { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 7px; }
 .lbrow-meta > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .podium .pod-score { display: block; margin-top: 2px; }

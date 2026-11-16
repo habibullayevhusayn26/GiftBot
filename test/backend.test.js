@@ -705,12 +705,15 @@ test('weekly podium uses rank numbers and the verification badge asset', () => {
   assert.ok(miniApp.indexOf('profile-sheet__badge--owner" src="/assets/owner.png"') < miniApp.indexOf('<span>${esc(user.name'));
   assert.ok(miniApp.indexOf('profile-sheet__badge--rank-${user.weeklyRank}" src="/assets/verify.png"') > miniApp.indexOf('<span>${esc(user.name'));
   assert.match(miniApp, /period === 'week' && x\.isOwner/);
-  assert.match(miniApp, /rankMovementMarkup\(x\)/);
+  assert.match(miniApp, /function rankMovementMarkup\(user, currentRank\)/);
+  assert.match(miniApp, /currentRank <= 3/);
+  assert.match(miniApp, /rankMovementMarkup\(x, position\)/);
+  assert.match(miniApp, /rankMovementMarkup\(x, i \+ 4\)/);
   assert.match(miniApp, /class="pod glass \$\{cls\} leaderboard-entry/);
   assert.match(miniApp, /class="item lbrow leaderboard-entry/);
   assert.match(miniApp, /rank-movement--up/);
   assert.match(miniApp, /rank-movement--down/);
-  assert.match(miniApp, /rank-movement--new/);
+  assert.doesNotMatch(miniApp, /rank-movement--new|Yangi reyting ishtirokchisi/);
   assert.match(miniApp, /rank-movement--same/);
   assert.match(miniApp, /\.podium \.pod\.p1 \{/);
   assert.match(miniApp, /\.podium \.pod\.p2 \{/);

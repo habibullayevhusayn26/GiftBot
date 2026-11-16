@@ -682,7 +682,6 @@ body {
 .lbrow-meta .rank-movement--up, .podium .rank-movement--up { color: #8af0bd; background: rgba(57,217,138,.1); border-color: rgba(57,217,138,.13); }
 .lbrow-meta .rank-movement--down, .podium .rank-movement--down { color: #ff9a9a; background: rgba(255,107,107,.1); border-color: rgba(255,107,107,.13); }
 .lbrow-meta .rank-movement--same, .podium .rank-movement--same { color: #b7c2d4; background: rgba(183,194,212,.08); border-color: rgba(183,194,212,.1); }
-.lbrow-meta .rank-movement--new, .podium .rank-movement--new { color: #9dcaff; background: rgba(90,168,255,.1); border-color: rgba(90,168,255,.14); }
 .lbrow-meta { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 7px; }
 .lbrow-meta > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .podium .pod-score { display: block; margin-top: 2px; }
@@ -1902,13 +1901,8 @@ function renderFriends() {
 }
 
 let period = 'week';
-function rankMovementMarkup(user) {
-  if (!LIVE_MODE || period !== 'week') return '';
-  if (!Number.isInteger(user.previousRank)) {
-    return Number(user.score) > 0
-      ? '<i class="rank-movement rank-movement--new" aria-label="Yangi reyting ishtirokchisi">Yangi</i>'
-      : '';
-  }
+function rankMovementMarkup(user, currentRank) {
+  if (!LIVE_MODE || period !== 'week' || currentRank <= 3 || !Number.isInteger(user.previousRank)) return '';
   if (user.rankChange > 0) {
     return `<i class="rank-movement rank-movement--up" aria-label="O‘tgan haftaga nisbatan ${user.rankChange} pog‘ona yuqori" title="O‘tgan haftaga nisbatan ${user.rankChange} pog‘ona yuqori">↑ ${user.rankChange}</i>`;
   }
@@ -1950,7 +1944,7 @@ async function renderTop() {
         ${period === 'week' && x.userId ? `<img class="verify-badge ${cls}" src="/assets/verify.png" alt="${position}-o‘rin tasdiqlangan" title="${position}-o‘rin" />` : ''}
       </div>
       <span class="pod-score">${fmt(x.score)}</span>
-      ${rankMovementMarkup(x)}
+      ${rankMovementMarkup(x, position)}
     </div>`;
   };
   destroyAnimations($('#podium'));
@@ -1963,7 +1957,7 @@ async function renderTop() {
     <div class="item lbrow leaderboard-entry${trigger ? ' profile-trigger' : ''}" style="--leaderboard-enter-index:${Math.min(i + 3, 10)}" ${trigger}>
       <span class="rank">${i + 4}</span>
       ${avatarMarkup(x, i + 3)}
-      <div class="txt"><b class="lbrow-name"><span class="lbrow-name-text">${esc(x.name)}</span>${x.isOwner ? '<img class="lbrow-admin-badge" src="/assets/owner.png" alt="Bot egasi" title="Bot egasi" />' : ''}</b><span class="lbrow-meta"><span>${x.invited === undefined ? (x.username ? `@${esc(x.username)}` : 'Ishtirokchi') : `${x.invited} ta taklif`}</span>${rankMovementMarkup(x)}</span></div>
+      <div class="txt"><b class="lbrow-name"><span class="lbrow-name-text">${esc(x.name)}</span>${x.isOwner ? '<img class="lbrow-admin-badge" src="/assets/owner.png" alt="Bot egasi" title="Bot egasi" />' : ''}</b><span class="lbrow-meta"><span>${x.invited === undefined ? (x.username ? `@${esc(x.username)}` : 'Ishtirokchi') : `${x.invited} ta taklif`}</span>${rankMovementMarkup(x, i + 4)}</span></div>
       <span class="score">${fmt(x.score)}</span>
     </div>`;
   }).join('');
