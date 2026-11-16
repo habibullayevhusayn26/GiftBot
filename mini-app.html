@@ -983,6 +983,41 @@ body { font-size: 17px; line-height: 1.35; }
 #app .pod, #app .pod.p1 { border-radius: 26px !important; }
 .pod b { font-size: 14px; }
 .pod span { font-size: 13px; }
+.podium .medal {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  margin: 0 auto 8px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.2), 0 4px 12px rgba(0,0,0,.24);
+}
+.podium .medal.p1 { color: #ffd166; background: linear-gradient(145deg, rgba(255,209,102,.28), rgba(255,209,102,.08)); }
+.podium .medal.p2 { color: #d7e0ed; background: linear-gradient(145deg, rgba(215,224,237,.25), rgba(215,224,237,.07)); }
+.podium .medal.p3 { color: #e7a36f; background: linear-gradient(145deg, rgba(205,127,50,.3), rgba(205,127,50,.08)); }
+.pod-name {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+.podium .pod-name b { min-width: 0; }
+.pod-name .verify-badge {
+  width: 17px;
+  height: 17px;
+  flex: none;
+  object-fit: contain;
+  filter: hue-rotate(202deg) saturate(1.45) brightness(1.08);
+  vertical-align: middle;
+}
+.pod-name .verify-badge.p2 { filter: grayscale(1) brightness(1.55) contrast(.9); }
+.pod-name .verify-badge.p3 { filter: hue-rotate(188deg) saturate(1.1) brightness(.92); }
+.pod.p1 .verify-badge { width: 19px; height: 19px; }
 .rank { font-size: 16px; }
 
 /* Pastki tab bar: kattaroq, suzuvchi, o'qiladigan yorliqlar */
@@ -1818,17 +1853,21 @@ async function renderTop() {
   }
   const [a, b, c] = data;
   const podiumUser = (x, fallback) => x || { name: fallback, score: 0 };
-  const pod = (x, rank, cls) => {
+  const pod = (x, rank, cls, position) => {
     const trigger = profileTriggerAttrs(x);
     return `
     <div class="pod glass ${cls}${trigger ? ' profile-trigger' : ''}" ${trigger}>
-      <span class="medal ${cls}">${icon({ p1: '🥇', p2: '🥈', p3: '🥉' }[cls])}</span>
+      <span class="medal ${cls}" aria-label="${position}-o‘rin">${position}</span>
       ${avatarMarkup(x, rank)}
-      <b>${esc(x.name)}</b><span>${fmt(x.score)}</span>
+      <div class="pod-name">
+        <b>${esc(x.name)}</b>
+        ${period === 'week' && x.userId ? `<img class="verify-badge ${cls}" src="/assets/verify.png" alt="${position}-o‘rin tasdiqlangan" title="${position}-o‘rin" />` : ''}
+      </div>
+      <span>${fmt(x.score)}</span>
     </div>`;
   };
   destroyAnimations($('#podium'));
-  $('#podium').innerHTML = pod(podiumUser(b, '—'), 1, 'p2') + pod(podiumUser(a, 'Hali yo‘q'), 0, 'p1') + pod(podiumUser(c, '—'), 2, 'p3');
+  $('#podium').innerHTML = pod(podiumUser(b, '—'), 1, 'p2', 2) + pod(podiumUser(a, 'Hali yo‘q'), 0, 'p1', 1) + pod(podiumUser(c, '—'), 2, 'p3', 3);
   mountAnimations($('#podium'));
 
   const rows = data.slice(3).map((x, i) => {

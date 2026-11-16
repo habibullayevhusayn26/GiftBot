@@ -636,6 +636,18 @@ test('rules file and level badge animation are present and valid', () => {
   assert.ok(Array.isArray(badge.layers));
 });
 
+test('weekly podium uses rank numbers and the verification badge asset', () => {
+  const miniApp = fs.readFileSync(path.join(__dirname, '..', 'mini-app.html'), 'utf8');
+  const asset = fs.readFileSync(path.join(__dirname, '..', 'assets', 'verify.png'));
+  assert.match(miniApp, /src="\/assets\/verify\.png"/);
+  assert.match(miniApp, /podium \.medal\.p1 \{ color: #ffd166/);
+  assert.match(miniApp, /podium \.medal\.p2 \{ color: #d7e0ed/);
+  assert.match(miniApp, /podium \.medal\.p3 \{ color: #e7a36f/);
+  assert.match(miniApp, /period === 'week' && x\.userId/);
+  assert.match(miniApp, /'p2', 2\).*'p1', 1\).*'p3', 3\)/s);
+  assert.equal(asset.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
+});
+
 test('API health is public but game data rejects unsigned requests', async (t) => {
   const { app } = createApplication({
     env: {
