@@ -304,6 +304,24 @@ button { font-family: inherit; border: 0; background: none; color: inherit; curs
 .profile-sheet__stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; text-align: left; }
 .profile-sheet__stat--level { grid-column: 1 / -1; }
 .profile-sheet__stat { min-width: 0; padding: 14px; border: 1px solid rgba(255,255,255,.07); border-radius: 17px; background: rgba(255,255,255,.045); }
+.profile-sheet__stat--id { position: relative; }
+.profile-id-copy {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 9px;
+  background: rgba(255,255,255,.07);
+  cursor: pointer;
+  transition: background .18s ease, transform .18s ease;
+}
+.profile-id-copy:active { transform: scale(.92); background: rgba(90,168,255,.18); }
+.profile-id-copy img { display: block; width: 17px; height: 17px; object-fit: contain; }
+.profile-sheet__stat--id > span { padding-right: 32px; }
 .profile-sheet__stat span { display: block; margin-bottom: 6px; color: var(--label2); font-size: 12px; }
 .profile-sheet__stat b { display: block; overflow-wrap: anywhere; font-size: 16px; font-variant-numeric: tabular-nums; }
 .profile-level-progress { height: 7px; margin-top: 10px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,.1); }
@@ -692,6 +710,38 @@ body {
 .podium .rank-movement { margin-top: 5px; }
 @media (prefers-reduced-motion: reduce) {
   .leaderboard-entry { animation: none !important; }
+}
+
+/* Profil oynasi kontent sig‘adigan balandlikda ochiladi */
+.profile-sheet { align-items: flex-end; }
+.profile-sheet__panel {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  width: min(100%, 560px);
+  height: auto;
+  max-height: 100vh;
+  max-height: 100dvh;
+  margin: 0 auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  border-radius: 40px 40px 0 0;
+  padding-bottom: calc(22px + var(--safe-b)) !important;
+}
+.profile-sheet__content { flex: none; }
+.profile-sheet__stats { flex: none; }
+@media (max-height: 700px) {
+  .profile-sheet__content .tgp { padding: 38px 18px 18px; }
+  .profile-sheet__content .tgp-avatar-wrap { width: 92px; margin-bottom: 9px; }
+  .profile-sheet__content .tgp .profile-sheet__avatar { width: 92px; height: 92px; }
+  .profile-sheet__content .tgp .profile-sheet__username { margin-top: 3px; }
+  .profile-sheet__content .tgp-pill { margin-top: 9px; padding: 5px 12px; }
+  .profile-sheet__stats { gap: 7px; padding-top: 10px; }
+  .profile-sheet__stat { padding: 10px 12px; }
+  .profile-level-progress { margin-top: 7px; }
+}
+@media (max-height: 560px) {
+  .profile-sheet__content .tgp { padding-top: 32px; }
 }
 
 
@@ -2074,7 +2124,13 @@ function renderProfileSheet(user) {
     <div class="profile-sheet__stats">
       <div class="profile-sheet__stat"><span>Haftalik o‘rni</span><b>${Number.isInteger(user.weeklyRank) ? `#${user.weeklyRank}` : '—'}</b></div>
       <div class="profile-sheet__stat"><span>Tasdiqlangan takliflar</span><b>${Number.isSafeInteger(user.confirmedReferrals) ? fmt(user.confirmedReferrals) : '—'}</b></div>
-      <div class="profile-sheet__stat"><span>Telegram ID</span><b>${esc(user.id)}</b></div>
+      <div class="profile-sheet__stat profile-sheet__stat--id">
+        <span>Telegram ID</span>
+        <b>${esc(user.id)}</b>
+        <button class="profile-id-copy" type="button" data-copy-user-id="${esc(user.id)}" aria-label="Telegram ID nusxalash" title="ID nusxalash">
+          <img src="/assets/copy.png" alt="" />
+        </button>
+      </div>
       <div class="profile-sheet__stat profile-sheet__stat--level">
         <span>Daraja ${Number.isInteger(user.level) ? user.level : '—'}</span>
         <b>${user.nextLevel ? `Keyingi darajagacha ${fmt(user.levelRemaining)} coin` : user.level ? 'Eng yuqori daraja' : 'Ma’lumot yo‘q'}</b>
@@ -2085,6 +2141,28 @@ function renderProfileSheet(user) {
       </div>
     </div>`;
   mountAvatarImages(content);
+}
+
+async function copyTextToClipboard(text) {
+  let clipboardError;
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return;
+    } catch (error) {
+      clipboardError = error;
+    }
+  }
+  const input = document.createElement('textarea');
+  input.value = text;
+  input.setAttribute('readonly', '');
+  input.style.position = 'fixed';
+  input.style.opacity = '0';
+  document.body.appendChild(input);
+  input.select();
+  const copied = document.execCommand('copy');
+  input.remove();
+  if (!copied) throw clipboardError || new Error('Clipboard copy command was rejected.');
 }
 
 async function openProfileSheet(userId, trigger) {
@@ -2125,6 +2203,21 @@ function closeProfileSheet() {
 }
 
 document.addEventListener('click', (event) => {
+  const copyButton = event.target.closest('[data-copy-user-id]');
+  if (copyButton) {
+    event.preventDefault();
+    event.stopPropagation();
+    void copyTextToClipboard(copyButton.dataset.copyUserId)
+      .then(() => {
+        haptic('success');
+        toast('Telegram ID nusxalandi');
+      })
+      .catch((error) => {
+        console.error('Could not copy Telegram ID:', error);
+        toast('ID nusxalanmadi. Qayta urinib ko‘ring.');
+      });
+    return;
+  }
   if (event.target.closest('#profileSheetClose, #profileSheetBackdrop')) {
     closeProfileSheet();
     return;

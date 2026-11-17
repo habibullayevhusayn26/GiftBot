@@ -704,6 +704,7 @@ test('weekly podium uses rank numbers and the verification badge asset', () => {
   const stylesheet = fs.readFileSync(path.join(__dirname, '..', 'style.css'), 'utf8');
   const asset = fs.readFileSync(path.join(__dirname, '..', 'assets', 'verify.png'));
   const ownerAsset = fs.readFileSync(path.join(__dirname, '..', 'assets', 'owner.png'));
+  const copyAsset = fs.readFileSync(path.join(__dirname, '..', 'assets', 'copy.png'));
   assert.match(miniApp, /src="\/assets\/verify\.png"/);
   assert.match(miniApp, /src="\/assets\/owner\.png"/);
   assert.ok(miniApp.indexOf('class="owner-badge"') < miniApp.indexOf('<b>${esc(x.name)}</b>'));
@@ -712,7 +713,18 @@ test('weekly podium uses rank numbers and the verification badge asset', () => {
   assert.match(miniApp, /Haftalik o‘rni/);
   assert.match(miniApp, /Tasdiqlangan takliflar/);
   assert.match(miniApp, /profile-level-progress/);
-  assert.match(miniApp, /<div class="profile-sheet__stat"><span>Telegram ID<\/span><b>\$\{esc\(user\.id\)\}<\/b><\/div>/);
+  assert.match(miniApp, /\.profile-sheet \{ align-items: flex-end; \}/);
+  assert.match(miniApp, /\.profile-sheet__panel \{[\s\S]*?height: auto;[\s\S]*?max-height: 100dvh;[\s\S]*?overflow-y: auto/);
+  assert.match(miniApp, /@media \(max-height: 700px\)/);
+  assert.match(miniApp, /@media \(max-height: 560px\)[\s\S]*?padding-top: 32px/);
+  assert.match(miniApp, /<div class="profile-sheet__stat profile-sheet__stat--id">\s*<span>Telegram ID<\/span>\s*<b>\$\{esc\(user\.id\)\}<\/b>\s*<button class="profile-id-copy"[^>]*data-copy-user-id="\$\{esc\(user\.id\)\}"[^>]*>\s*<img src="\/assets\/copy\.png"/);
+  assert.match(miniApp, /data-copy-user-id="\$\{esc\(user\.id\)\}"/);
+  assert.match(miniApp, /async function copyTextToClipboard\(text\)/);
+  assert.match(miniApp, /copyTextToClipboard\(copyButton\.dataset\.copyUserId\)/);
+  assert.match(miniApp, /document\.execCommand\('copy'\)/);
+  assert.match(miniApp, /profile-id-copy/);
+  assert.equal(copyAsset.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
+  assert.match(stylesheet, /\.profile-id-copy img \{ display: block; width: 17px; height: 17px/);
   assert.match(miniApp, /\.profile-sheet__name \{[^}]*align-items: center[^}]*line-height: 1\.2/);
   assert.match(miniApp, /\.profile-sheet__badge \{ width: 1\.35em; height: 1\.35em/);
   assert.match(miniApp, /\.profile-sheet__badge--owner \{ width: 1em; height: 1em/);
