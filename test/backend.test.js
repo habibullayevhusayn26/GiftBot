@@ -717,6 +717,8 @@ test('weekly podium uses rank numbers and the verification badge asset', () => {
   assert.match(miniApp, /\.profile-sheet__panel \{[\s\S]*?height: auto;[\s\S]*?max-height: 100dvh;[\s\S]*?overflow-y: auto/);
   assert.match(miniApp, /@media \(max-height: 700px\)/);
   assert.match(miniApp, /@media \(max-height: 560px\)[\s\S]*?padding-top: 32px/);
+  assert.match(miniApp, /\.toast \{[^}]*z-index: 10001/);
+  assert.match(stylesheet, /\.toast \{[^}]*z-index: 10001/);
   assert.match(miniApp, /<div class="profile-sheet__stat profile-sheet__stat--id">\s*<span>Telegram ID<\/span>\s*<b>\$\{esc\(user\.id\)\}<\/b>\s*<button class="profile-id-copy"[^>]*data-copy-user-id="\$\{esc\(user\.id\)\}"[^>]*>\s*<img src="\/assets\/copy\.png"/);
   assert.match(miniApp, /data-copy-user-id="\$\{esc\(user\.id\)\}"/);
   assert.match(miniApp, /async function copyTextToClipboard\(text\)/);
