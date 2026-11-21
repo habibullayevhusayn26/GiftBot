@@ -1464,6 +1464,24 @@ button, .item, .pill { touch-action: manipulation; }
 }
 .lq-slider:focus-visible .lq-thumb { outline: 2px solid #0a84ff; outline-offset: 3px; }
 .lq-labels { display: flex; justify-content: space-between; padding: 0 38px; color: var(--label2); font-size: 12px; }
+.settings-detail { display: block; }
+.settings-detail__title { margin: 2px 0 10px; color: var(--label2); font-size: 13px; font-weight: 700; }
+.vibration-grid, .language-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
+.vibration-grid label { display: flex; align-items: center; gap: 6px; min-height: 38px; padding: 7px 8px; border: 1px solid var(--glass-border); border-radius: 11px; color: var(--label2); font-size: 11px; }
+.vibration-grid input { accent-color: var(--green); }
+.settings-row .txt small { display: block; margin-top: 3px; color: var(--label2); }
+.settings-select { max-width: 118px; height: 38px; padding: 0 10px; border: 1px solid var(--glass-border); border-radius: 11px; outline: none; background: var(--glass-strong); color: var(--label); font: inherit; font-size: 12px; }
+.language-grid button { min-height: 38px; border: 1px solid var(--glass-border); border-radius: 11px; background: rgba(148,163,184,.06); color: var(--label2); font-size: 12px; font-weight: 700; }
+.language-grid button.on { border-color: rgba(48,209,88,.38); background: rgba(48,209,88,.12); color: var(--green); }
+html[data-font="rounded"] body { --font: "Arial Rounded MT Bold", "Trebuchet MS", system-ui, sans-serif; }
+html[data-font="modern"] body { --font: "Inter", "Segoe UI", Helvetica, Arial, sans-serif; }
+html[data-font="classic"] body { --font: Georgia, "Times New Roman", serif; }
+html[data-font="mono"] body { --font: "SFMono-Regular", Consolas, "Liberation Mono", monospace; }
+body[data-theme="light"] { --bg:#edf4fb; --bg-2:#f7faff; --label:#172033; --label2:rgba(23,32,51,.72); --label3:rgba(23,32,51,.48); --sep:rgba(30,50,80,.14); --glass:rgba(255,255,255,.74); --glass-strong:rgba(255,255,255,.92); --glass-border:rgba(66,95,130,.14); --glass-shadow:0 12px 30px rgba(55,85,120,.12), inset 0 1px 0 rgba(255,255,255,.9); --fill:rgba(48,80,120,.10); background:linear-gradient(180deg,#eef6ff,#f8fbff); }
+body[data-theme="light"] .bg { background:linear-gradient(180deg,#eef6ff,#f8fbff); }
+body[data-theme="light"] .blob { opacity:.22; }
+body[data-theme="light"] .item { background:rgba(255,255,255,.28); }
+body[data-theme="light"] .tabbar { background:rgba(255,255,255,.92); border-color:rgba(66,95,130,.12); }
   </style>
 </head>
 <body>
@@ -1682,8 +1700,40 @@ button, .item, .pill { touch-action: manipulation; }
         </div>
         <div class="item">
           <span class="ico" style="--c:#ff9f0a"><span class="emoji-icon" data-emoji="ui14" aria-hidden="true"></span></span>
-          <div class="txt"><b>Titrash (haptika)</b></div>
+          <div class="txt"><b id="hapticSettingTitle">Titrash (haptika)</b></div>
           <label class="switch"><input type="checkbox" id="hapticToggle" checked /><i></i></label>
+        </div>
+        <div class="item settings-detail">
+          <div class="settings-detail__title" id="placesSettingTitle">Titrash ishlatiladigan joylar</div>
+          <div class="vibration-grid">
+            <label><input type="checkbox" id="hapticButtons" checked /> Tugmalar</label>
+            <label><input type="checkbox" id="hapticSuccess" checked /> Muvaffaqiyat</label>
+            <label><input type="checkbox" id="hapticAlerts" checked /> Eslatma va bonus</label>
+          </div>
+        </div>
+        <div class="item settings-row">
+          <span class="ico" style="--c:#bf5af2">Aa</span>
+          <div class="txt"><b id="fontSettingTitle">Shrift turi</b><small id="fontName">Tizim</small></div>
+          <select class="settings-select" id="fontSelect" aria-label="Shrift turi">
+            <option value="system">Tizim</option>
+            <option value="rounded">Rounded</option>
+            <option value="modern">Modern</option>
+            <option value="classic">Classic</option>
+            <option value="mono">Monospace</option>
+          </select>
+        </div>
+        <div class="item">
+          <span class="ico" style="--c:#ffd60a">☀</span>
+          <div class="txt"><b id="themeSettingTitle">Kunduzgi rejim</b><small id="themeSettingHint">Yorqin interfeys</small></div>
+          <label class="switch"><input type="checkbox" id="themeToggle" /><i></i></label>
+        </div>
+        <div class="item settings-detail">
+          <div class="settings-detail__title" id="languageSettingTitle">Til</div>
+          <div class="language-grid" id="languageSelect" role="radiogroup" aria-label="Til">
+            <button type="button" data-lang="uz" class="on" role="radio" aria-checked="true">O‘zbek</button>
+            <button type="button" data-lang="ru" role="radio" aria-checked="false">Русский</button>
+            <button type="button" data-lang="en" role="radio" aria-checked="false">English</button>
+          </div>
         </div>
         <div class="item" id="rulesBtn">
           <span class="ico" style="--c:#0a84ff"><span class="emoji-icon" data-emoji="ui4" aria-hidden="true"></span></span>
@@ -1995,8 +2045,15 @@ let profileReturnFocus = null;
 
 /* ---------- Haptika ---------- */
 let hapticOn = true;
+let hapticConfig = { buttons: true, success: true, alerts: true };
+try {
+  hapticOn = localStorage.getItem('hapticOn') !== '0';
+  hapticConfig = { ...hapticConfig, ...JSON.parse(localStorage.getItem('hapticConfig') || '{}') };
+} catch {}
 const haptic = (kind = 'light') => {
   if (!hapticOn || !tg?.HapticFeedback) return;
+  if (['success', 'error', 'warning'].includes(kind) && !hapticConfig.success && !hapticConfig.alerts) return;
+  if (['light', 'medium', 'heavy', 'rigid', 'soft', 'select'].includes(kind) && !hapticConfig.buttons) return;
   if (['success', 'error', 'warning'].includes(kind)) tg.HapticFeedback.notificationOccurred(kind);
   else if (kind === 'select') tg.HapticFeedback.selectionChanged();
   else tg.HapticFeedback.impactOccurred(kind);
@@ -2668,7 +2725,79 @@ $('#shareBtn').addEventListener('click', () => {
   if (tg?.openTelegramLink) tg.openTelegramLink(url); else window.open(url, '_blank');
 });
 
-$('#hapticToggle').addEventListener('change', (e) => { hapticOn = e.target.checked; if (hapticOn) haptic('medium'); });
+$('#hapticToggle').addEventListener('change', (e) => {
+  hapticOn = e.target.checked;
+  localStorage.setItem('hapticOn', hapticOn ? '1' : '0');
+  if (hapticOn) haptic('medium');
+});
+const fontNames = { system: 'Tizim', rounded: 'Rounded', modern: 'Modern', classic: 'Classic', mono: 'Monospace' };
+const translations = {
+  uz: { home: 'Bosh', friends: "Do'stlar", top: 'Reyting', me: 'Profil', profile: 'Profil', settings: 'Sozlamalar', haptic: 'Titrash (haptika)', places: 'Titrash ishlatiladigan joylar', font: 'Shrift turi', theme: 'Kunduzgi rejim', bright: 'Yorqin interfeys', lang: 'Til', rules: 'Qoidalar', help: 'Yordam' },
+  ru: { home: 'Главная', friends: 'Друзья', top: 'Рейтинг', me: 'Профиль', profile: 'Профиль', settings: 'Настройки', haptic: 'Вибрация', places: 'Где использовать вибрацию', font: 'Тип шрифта', theme: 'Дневной режим', bright: 'Светлый интерфейс', lang: 'Язык', rules: 'Правила', help: 'Помощь' },
+  en: { home: 'Home', friends: 'Friends', top: 'Leaderboard', me: 'Profile', profile: 'Profile', settings: 'Settings', haptic: 'Haptic feedback', places: 'Where to use vibration', font: 'Font style', theme: 'Day mode', bright: 'Light interface', lang: 'Language', rules: 'Rules', help: 'Support' }
+};
+function applyPreferences() {
+  const savedFont = localStorage.getItem('appFont') || 'system';
+  const savedTheme = localStorage.getItem('appTheme') || 'dark';
+  const savedLang = localStorage.getItem('appLanguage') || 'uz';
+  document.documentElement.dataset.font = savedFont;
+  document.body.dataset.theme = savedTheme;
+  document.documentElement.lang = savedLang;
+  $('#fontSelect').value = savedFont;
+  $('#fontName').textContent = fontNames[savedFont] || fontNames.system;
+  $('#themeToggle').checked = savedTheme === 'light';
+  $('#hapticToggle').checked = hapticOn;
+  ['buttons', 'success', 'alerts'].forEach((key) => {
+    const input = $(`#haptic${key[0].toUpperCase()}${key.slice(1)}`);
+    if (input) input.checked = hapticConfig[key] !== false;
+  });
+  const t = translations[savedLang] || translations.uz;
+  ['home', 'friends', 'top', 'me'].forEach((key) => {
+    const button = $(`#tabbar [data-t="${key}"]`);
+    const label = button?.querySelector(':scope > span:last-child');
+    if (label) label.textContent = t[key];
+  });
+  $('#page-me h1').textContent = t.profile;
+  const settingsTitle = $$('#page-me .section').find((el) => el.textContent.includes('Sozlamalar') || el.textContent.includes('Настройки') || el.textContent.includes('Settings'));
+  if (settingsTitle) settingsTitle.textContent = t.settings;
+  $('#hapticSettingTitle').textContent = t.haptic;
+  $('#placesSettingTitle').textContent = t.places;
+  $('#fontSettingTitle').textContent = t.font;
+  $('#themeSettingTitle').textContent = t.theme;
+  $('#themeSettingHint').textContent = t.bright;
+  $('#languageSettingTitle').textContent = t.lang;
+  $$('#languageSelect button').forEach((button) => {
+    const active = button.dataset.lang === savedLang;
+    button.classList.toggle('on', active);
+    button.setAttribute('aria-checked', String(active));
+  });
+}
+$('#fontSelect').addEventListener('change', (e) => {
+  localStorage.setItem('appFont', e.target.value);
+  applyPreferences();
+  haptic('select');
+});
+$('#themeToggle').addEventListener('change', (e) => {
+  localStorage.setItem('appTheme', e.target.checked ? 'light' : 'dark');
+  applyPreferences();
+  haptic('light');
+  toast(e.target.checked ? 'Kunduzgi rejim yoqildi' : 'Tungi rejim yoqildi');
+});
+$('#languageSelect').addEventListener('click', (e) => {
+  const button = e.target.closest('[data-lang]');
+  if (!button) return;
+  localStorage.setItem('appLanguage', button.dataset.lang);
+  applyPreferences();
+  haptic('select');
+});
+['buttons', 'success', 'alerts'].forEach((key) => {
+  const input = $(`#haptic${key[0].toUpperCase()}${key.slice(1)}`);
+  input?.addEventListener('change', (e) => {
+    hapticConfig[key] = e.target.checked;
+    localStorage.setItem('hapticConfig', JSON.stringify(hapticConfig));
+  });
+});
+applyPreferences();
 let rulesLoaded = false;
 async function openRulesPage() {
   go('rules');

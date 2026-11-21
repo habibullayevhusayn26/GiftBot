@@ -184,8 +184,15 @@ let profileReturnFocus = null;
 
 /* ---------- Haptika ---------- */
 let hapticOn = true;
+let hapticConfig = { buttons: true, success: true, alerts: true };
+try {
+  hapticOn = localStorage.getItem('hapticOn') !== '0';
+  hapticConfig = { ...hapticConfig, ...JSON.parse(localStorage.getItem('hapticConfig') || '{}') };
+} catch {}
 const haptic = (kind = 'light') => {
   if (!hapticOn || !tg?.HapticFeedback) return;
+  if (['success', 'error', 'warning'].includes(kind) && !hapticConfig.success && !hapticConfig.alerts) return;
+  if (['light', 'medium', 'heavy', 'rigid', 'soft', 'select'].includes(kind) && !hapticConfig.buttons) return;
   if (['success', 'error', 'warning'].includes(kind)) tg.HapticFeedback.notificationOccurred(kind);
   else if (kind === 'select') tg.HapticFeedback.selectionChanged();
   else tg.HapticFeedback.impactOccurred(kind);
@@ -731,7 +738,79 @@ $('#shareBtn').addEventListener('click', () => {
   if (tg?.openTelegramLink) tg.openTelegramLink(url); else window.open(url, '_blank');
 });
 
-$('#hapticToggle').addEventListener('change', (e) => { hapticOn = e.target.checked; if (hapticOn) haptic('medium'); });
+$('#hapticToggle').addEventListener('change', (e) => {
+  hapticOn = e.target.checked;
+  localStorage.setItem('hapticOn', hapticOn ? '1' : '0');
+  if (hapticOn) haptic('medium');
+});
+const fontNames = { system: 'Tizim', rounded: 'Rounded', modern: 'Modern', classic: 'Classic', mono: 'Monospace' };
+const translations = {
+  uz: { home: 'Bosh', friends: "Do'stlar", top: 'Reyting', me: 'Profil', profile: 'Profil', settings: 'Sozlamalar', haptic: 'Titrash (haptika)', places: 'Titrash ishlatiladigan joylar', font: 'Shrift turi', theme: 'Kunduzgi rejim', bright: 'Yorqin interfeys', lang: 'Til', rules: 'Qoidalar', help: 'Yordam' },
+  ru: { home: 'Главная', friends: 'Друзья', top: 'Рейтинг', me: 'Профиль', profile: 'Профиль', settings: 'Настройки', haptic: 'Вибрация (тактильный отклик)', places: 'Где использовать вибрацию', font: 'Тип шрифта', theme: 'Дневной режим', bright: 'Светлый интерфейс', lang: 'Язык', rules: 'Правила', help: 'Помощь' },
+  en: { home: 'Home', friends: 'Friends', top: 'Leaderboard', me: 'Profile', profile: 'Profile', settings: 'Settings', haptic: 'Haptic feedback', places: 'Where to use vibration', font: 'Font style', theme: 'Day mode', bright: 'Light interface', lang: 'Language', rules: 'Rules', help: 'Support' }
+};
+function applyPreferences() {
+  const savedFont = localStorage.getItem('appFont') || 'system';
+  const savedTheme = localStorage.getItem('appTheme') || 'dark';
+  const savedLang = localStorage.getItem('appLanguage') || 'uz';
+  document.documentElement.dataset.font = savedFont;
+  document.body.dataset.theme = savedTheme;
+  document.documentElement.lang = savedLang;
+  $('#fontSelect').value = savedFont;
+  $('#fontName').textContent = fontNames[savedFont] || fontNames.system;
+  $('#themeToggle').checked = savedTheme === 'light';
+  $('#hapticToggle').checked = hapticOn;
+  ['buttons', 'success', 'alerts'].forEach((key) => {
+    const input = $(`#haptic${key[0].toUpperCase()}${key.slice(1)}`);
+    if (input) input.checked = hapticConfig[key] !== false;
+  });
+  const t = translations[savedLang] || translations.uz;
+  ['home', 'friends', 'top', 'me'].forEach((key) => {
+    const button = $(`#tabbar [data-t="${key}"]`);
+    const label = button?.querySelector(':scope > span:last-child');
+    if (label) label.textContent = t[key];
+  });
+  $('#page-me h1').textContent = t.profile;
+  const settingsTitle = $$('#page-me .section').find((el) => el.textContent.includes('Sozlamalar') || el.textContent.includes('Настройки') || el.textContent.includes('Settings'));
+  if (settingsTitle) settingsTitle.textContent = t.settings;
+  $('#hapticSettingTitle').textContent = t.haptic;
+  $('#placesSettingTitle').textContent = t.places;
+  $('#fontSettingTitle').textContent = t.font;
+  $('#themeSettingTitle').textContent = t.theme;
+  $('#themeSettingHint').textContent = t.bright;
+  $('#languageSettingTitle').textContent = t.lang;
+  $$('#languageSelect button').forEach((button) => {
+    const active = button.dataset.lang === savedLang;
+    button.classList.toggle('on', active);
+    button.setAttribute('aria-checked', String(active));
+  });
+}
+$('#fontSelect').addEventListener('change', (e) => {
+  localStorage.setItem('appFont', e.target.value);
+  applyPreferences();
+  haptic('select');
+});
+$('#themeToggle').addEventListener('change', (e) => {
+  localStorage.setItem('appTheme', e.target.checked ? 'light' : 'dark');
+  applyPreferences();
+  haptic('light');
+  toast(e.target.checked ? 'Kunduzgi rejim yoqildi' : 'Tungi rejim yoqildi');
+});
+$('#languageSelect').addEventListener('click', (e) => {
+  const button = e.target.closest('[data-lang]');
+  if (!button) return;
+  localStorage.setItem('appLanguage', button.dataset.lang);
+  applyPreferences();
+  haptic('select');
+});
+['buttons', 'success', 'alerts'].forEach((key) => {
+  const input = $(`#haptic${key[0].toUpperCase()}${key.slice(1)}`);
+  input?.addEventListener('change', (e) => {
+    hapticConfig[key] = e.target.checked;
+    localStorage.setItem('hapticConfig', JSON.stringify(hapticConfig));
+  });
+});
+applyPreferences();
 let rulesLoaded = false;
 async function openRulesPage() {
   go('rules');

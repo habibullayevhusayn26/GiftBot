@@ -212,8 +212,40 @@
       <div class="list glass">
         <div class="item">
           <span class="ico" style="--c:#ff9f0a"><span class="emoji-icon" data-emoji="📳" aria-hidden="true"></span></span>
-          <div class="txt"><b>Titrash (haptika)</b></div>
+          <div class="txt"><b id="hapticSettingTitle">Titrash (haptika)</b></div>
           <label class="switch"><input type="checkbox" id="hapticToggle" checked /><i></i></label>
+        </div>
+        <div class="item settings-detail">
+          <div class="settings-detail__title" id="placesSettingTitle">Titrash ishlatiladigan joylar</div>
+          <div class="vibration-grid">
+            <label><input type="checkbox" id="hapticButtons" checked /> Tugmalar</label>
+            <label><input type="checkbox" id="hapticSuccess" checked /> Muvaffaqiyat</label>
+            <label><input type="checkbox" id="hapticAlerts" checked /> Eslatma va bonus</label>
+          </div>
+        </div>
+        <div class="item settings-row">
+          <span class="ico" style="--c:#bf5af2">Aa</span>
+          <div class="txt"><b id="fontSettingTitle">Shrift turi</b><small id="fontName">Tizim</small></div>
+          <select class="settings-select" id="fontSelect" aria-label="Shrift turi">
+            <option value="system">Tizim</option>
+            <option value="rounded">Rounded</option>
+            <option value="modern">Modern</option>
+            <option value="classic">Classic</option>
+            <option value="mono">Monospace</option>
+          </select>
+        </div>
+        <div class="item">
+          <span class="ico" style="--c:#ffd60a">☀</span>
+          <div class="txt"><b id="themeSettingTitle">Kunduzgi rejim</b><small id="themeSettingHint">Yorqin interfeys</small></div>
+          <label class="switch"><input type="checkbox" id="themeToggle" /><i></i></label>
+        </div>
+        <div class="item settings-detail">
+          <div class="settings-detail__title" id="languageSettingTitle">Til</div>
+          <div class="language-grid" id="languageSelect" role="radiogroup" aria-label="Til">
+            <button type="button" data-lang="uz" class="on" role="radio" aria-checked="true">O‘zbek</button>
+            <button type="button" data-lang="ru" role="radio" aria-checked="false">Русский</button>
+            <button type="button" data-lang="en" role="radio" aria-checked="false">English</button>
+          </div>
         </div>
         <div class="item" id="rulesBtn">
           <span class="ico" style="--c:#0a84ff"><span class="emoji-icon" data-emoji="📖" aria-hidden="true"></span></span>
