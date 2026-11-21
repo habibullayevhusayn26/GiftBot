@@ -1482,6 +1482,35 @@ body[data-theme="light"] .bg { background:linear-gradient(180deg,#eef6ff,#f8fbff
 body[data-theme="light"] .blob { opacity:.22; }
 body[data-theme="light"] .item { background:rgba(255,255,255,.28); }
 body[data-theme="light"] .tabbar { background:rgba(255,255,255,.92); border-color:rgba(66,95,130,.12); }
+body[data-theme="light"] #app .card,
+body[data-theme="light"] #app .list,
+body[data-theme="light"] #app .invite,
+body[data-theme="light"] #app .profile,
+body[data-theme="light"] #app .prize,
+body[data-theme="light"] #page-home .hero,
+body[data-theme="light"] #app .pod,
+body[data-theme="light"] #page-home #taskList,
+body[data-theme="light"] .tabbar,
+body[data-theme="light"] .cap-card,
+body[data-theme="light"] .profile-sheet__panel {
+  background: rgba(255,255,255,.82) !important;
+  border-color: rgba(66,95,130,.14) !important;
+  color: var(--label);
+}
+body[data-theme="light"] #app .section,
+body[data-theme="light"] #app .large-title .sub,
+body[data-theme="light"] .txt span,
+body[data-theme="light"] .foot,
+body[data-theme="light"] .profile-sheet__username,
+body[data-theme="light"] .profile-sheet__stat span { color: var(--label2) !important; }
+body[data-theme="light"] .item + .item::before,
+body[data-theme="light"] .profile-sheet__stat,
+body[data-theme="light"] .settings-select,
+body[data-theme="light"] .donation-input,
+body[data-theme="light"] .task-proof { border-color: rgba(66,95,130,.14) !important; }
+body[data-theme="light"] .settings-select,
+body[data-theme="light"] .donation-input,
+body[data-theme="light"] .task-proof { background: rgba(255,255,255,.88) !important; color: var(--label) !important; }
   </style>
 </head>
 <body>
@@ -2743,6 +2772,14 @@ function applyPreferences() {
   document.documentElement.dataset.font = savedFont;
   document.body.dataset.theme = savedTheme;
   document.documentElement.lang = savedLang;
+  const themeMeta = document.querySelector('meta[name="theme-color"]');
+  if (themeMeta) themeMeta.content = savedTheme === 'light' ? '#edf4fb' : '#09111c';
+  if (tg) {
+    try {
+      tg.setHeaderColor?.(savedTheme === 'light' ? '#edf4fb' : '#09111c');
+      tg.setBackgroundColor?.(savedTheme === 'light' ? '#edf4fb' : '#09111c');
+    } catch {}
+  }
   $('#fontSelect').value = savedFont;
   $('#fontName').textContent = fontNames[savedFont] || fontNames.system;
   $('#themeToggle').checked = savedTheme === 'light';

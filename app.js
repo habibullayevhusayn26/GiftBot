@@ -756,6 +756,14 @@ function applyPreferences() {
   document.documentElement.dataset.font = savedFont;
   document.body.dataset.theme = savedTheme;
   document.documentElement.lang = savedLang;
+  const themeMeta = document.querySelector('meta[name="theme-color"]');
+  if (themeMeta) themeMeta.content = savedTheme === 'light' ? '#edf4fb' : '#09111c';
+  if (tg) {
+    try {
+      tg.setHeaderColor?.(savedTheme === 'light' ? '#edf4fb' : '#09111c');
+      tg.setBackgroundColor?.(savedTheme === 'light' ? '#edf4fb' : '#09111c');
+    } catch {}
+  }
   $('#fontSelect').value = savedFont;
   $('#fontName').textContent = fontNames[savedFont] || fontNames.system;
   $('#themeToggle').checked = savedTheme === 'light';
