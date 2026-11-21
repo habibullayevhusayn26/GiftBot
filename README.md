@@ -64,6 +64,13 @@ the bot to have purchased additional usernames on Fragment.
 
 ## Game and admin workflow
 
+- Users can open **Konstruktor** from the bot's main menu, paste a BotFather API
+  token, and launch a separate referral bot. The bot runs without a Mini App:
+  `/start` creates referral links, and `/stats` shows the user's referral count.
+  Constructor bot tokens are encrypted in MongoDB and may be decrypted only with
+  `CONSTRUCTOR_SECRET` or the main bot token. Set a stable
+  `CONSTRUCTOR_SECRET` in production to keep constructed bots available after
+  bot-token changes.
 - Users complete the in-app CAPTCHA, claim a daily bonus, join the configured
   channel, submit external tasks for admin review, and invite verified friends.
 - Channel membership is checked with Telegram's `getChatMember` API. Each

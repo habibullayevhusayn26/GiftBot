@@ -831,6 +831,23 @@ const promoRedemptionSchema = new mongoose.Schema({
 }, { timestamps: true, versionKey: false });
 promoRedemptionSchema.index({ userId: 1, code: 1 }, { unique: true });
 
+const constructedBotSchema = new mongoose.Schema({
+  _id: { type: String },
+  ownerId: { type: String, required: true, index: true },
+  tokenEncrypted: { type: String, required: true },
+  username: { type: String, required: true },
+  enabled: { type: Boolean, default: true },
+}, { timestamps: true, versionKey: false });
+
+const constructedReferralSchema = new mongoose.Schema({
+  _id: { type: String },
+  botId: { type: String, required: true, index: true },
+  inviterId: { type: String, required: true, index: true },
+  referredId: { type: String, required: true, index: true },
+  firstSeenAt: { type: Date, default: Date.now },
+}, { timestamps: { createdAt: true, updatedAt: false }, versionKey: false });
+constructedReferralSchema.index({ botId: 1, referredId: 1 }, { unique: true });
+
 const User = mongoose.model('User', userSchema);
 const Ledger = mongoose.model('Ledger', ledgerSchema);
 const Task = mongoose.model('Task', taskSchema);
@@ -844,6 +861,8 @@ const Donation = mongoose.model('Donation', donationSchema);
 const AccountSignal = mongoose.model('AccountSignal', accountSignalSchema);
 const Promo = mongoose.model('Promo', promoSchema);
 const PromoRedemption = mongoose.model('PromoRedemption', promoRedemptionSchema);
+const ConstructedBot = mongoose.model('ConstructedBot', constructedBotSchema);
+const ConstructedReferral = mongoose.model('ConstructedReferral', constructedReferralSchema);
 
 class HttpError extends Error {
   constructor(status, message) {
@@ -875,6 +894,27 @@ function normalizeAppUrl(value) {
     throw new Error('APP_URL must be a public HTTPS URL without embedded credentials.');
   }
   return appUrl.href;
+}
+
+function encryptConstructorToken(token, secret) {
+  const key = crypto.createHash('sha256').update(secret).digest();
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+  const encrypted = Buffer.concat([cipher.update(token, 'utf8'), cipher.final()]);
+  return `${iv.toString('hex')}:${cipher.getAuthTag().toString('hex')}:${encrypted.toString('hex')}`;
+}
+
+function decryptConstructorToken(value, secret) {
+  const [ivHex, tagHex, encryptedHex] = String(value || '').split(':');
+  if (!ivHex || !tagHex || !encryptedHex) throw new Error('Saqlangan bot tokeni buzilgan.');
+  const key = crypto.createHash('sha256').update(secret).digest();
+  const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(ivHex, 'hex'));
+  decipher.setAuthTag(Buffer.from(tagHex, 'hex'));
+  return Buffer.concat([decipher.update(Buffer.from(encryptedHex, 'hex')), decipher.final()]).toString('utf8');
+}
+
+function isTelegramBotToken(value) {
+  return /^\d{6,12}:[A-Za-z0-9_-]{20,}$/i.test(String(value || '').trim());
 }
 
 function isActiveChatMember(member) {
@@ -932,6 +972,8 @@ function createApplication(options = {}) {
   const referralGiftCatalogs = new Map();
   const adminGiftCatalogs = new Map();
   const promoAnnouncementUpdates = new Map();
+  const constructedBots = new Map();
+  const constructorSecret = env.CONSTRUCTOR_SECRET || botToken;
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
   app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
@@ -2421,6 +2463,49 @@ function createApplication(options = {}) {
       await showTaskSettings(ctx);
       return;
     }
+    if (pending.kind === 'constructor_token') {
+      const token = value;
+      if (!isTelegramBotToken(token)) {
+        await ctx.reply('BotFather’dan olingan API token formati noto‘g‘ri.');
+        await promptAdminInput(ctx, {
+          kind: 'constructor_token',
+          prompt: 'Telegram API tokenini qayta yuboring.',
+        });
+        return;
+      }
+      const existingCount = await ConstructedBot.countDocuments({ ownerId: adminId, enabled: true });
+      if (existingCount >= 10) {
+        await ctx.reply('Konstruktor limiti: bir foydalanuvchi uchun ko‘pi bilan 10 ta faol bot.');
+        return;
+      }
+      try {
+        const probe = new Telegraf(token);
+        const me = await probe.telegram.getMe();
+        if (!me?.username) throw new Error('Bot username olinmadi.');
+        const username = me.username.toLowerCase();
+        const duplicate = await ConstructedBot.findOne({ username }).lean();
+        if (duplicate) {
+          await ctx.reply('Bu bot allaqachon konstruktor orqali ulangan.');
+          return;
+        }
+        const record = await ConstructedBot.create({
+          _id: `constructed_${crypto.randomUUID()}`,
+          ownerId: adminId,
+          tokenEncrypted: encryptConstructorToken(token, constructorSecret),
+          username,
+          enabled: true,
+        });
+        await launchConstructedBot(record);
+        await ctx.reply(
+          `✅ @${me.username} bot ulandi!\n\n` +
+          `Unga havola: https://t.me/${me.username}\n` +
+          `Endi bot referral havolalari orqali foydalanuvchilarni qabul qiladi.`,
+        );
+      } catch (error) {
+        await ctx.reply(`Bot ulanmagan: ${error.description || error.message || 'Noto‘g‘ri API token.'}`);
+      }
+      return;
+    }
     if (pending.kind === 'promo_create_code') {
       let code;
       try {
@@ -2624,11 +2709,70 @@ function createApplication(options = {}) {
       );
     }
     await ctx.reply(
-      '👋 Viral mini-ilovasiga xush kelibsiz!\n👥 Do‘st taklif qiling, 📋 topshiriqlarni bajaring va 🏆 haftalik sovrin uchun bellashing.',
-      Markup.inlineKeyboard([[
-        Markup.button.webApp('▶️ Mini ilovani ochish', config.appUrl),
-      ]]),
+      '👋 Xush kelibsiz!\n\n🛠 Konstruktor orqali o‘zingizga BotFather’da yaratgan botni ulang va referral tizimini ishga tushiring.',
+      Markup.inlineKeyboard([
+        [Markup.button.callback('🛠 Konstruktor', 'constructor_home')],
+        [Markup.button.webApp('▶️ Mini ilovani ochish', config.appUrl)],
+      ]),
     );
+  });
+
+  bot.action('constructor_home', async (ctx) => {
+    await ctx.answerCbQuery();
+    const ownerId = String(ctx.from.id);
+    const bots = await ConstructedBot.find({ ownerId, enabled: true }).sort({ createdAt: -1 }).lean();
+    const rows = [[Markup.button.callback('➕ Yangi bot qo‘shish', 'constructor_add')]];
+    for (const botRecord of bots) {
+      const referrals = await ConstructedReferral.countDocuments({ botId: botRecord._id });
+      rows.push([
+        Markup.button.url(`@${botRecord.username}`, `https://t.me/${botRecord.username}`),
+        Markup.button.callback(`${referrals} referral`, `constructor_stats_${botRecord._id}`),
+      ]);
+      rows.push([Markup.button.callback('🗑 O‘chirib qo‘yish', `constructor_delete_${botRecord._id}`)]);
+    }
+    await ctx.reply(
+      '🛠 Konstruktor\n\nBotFather’da bot yarating, unga API token yuboring. Bot referral havolalari orqali do‘stlaringizni qabul qiladi.',
+      Markup.inlineKeyboard(rows),
+    );
+  });
+
+  bot.action('constructor_add', async (ctx) => {
+    await ctx.answerCbQuery();
+    await promptAdminInput(ctx, {
+      kind: 'constructor_token',
+      prompt: 'BotFather’dan olgan API tokenni yuboring.\nMasalan: 123456789:telegram_bot_token',
+    });
+  });
+
+  bot.action(/^constructor_stats_([a-z0-9_-]+:[a-f0-9-]+|constructed_[a-f0-9-]+)$/, async (ctx) => {
+    await ctx.answerCbQuery();
+    const record = await ConstructedBot.findOne({ _id: ctx.match[1], ownerId: String(ctx.from.id) }).lean();
+    if (!record) {
+      await ctx.reply('Bot topilmadi.');
+      return;
+    }
+    const total = await ConstructedReferral.countDocuments({ botId: record._id });
+    await ctx.reply(
+      `📊 @${record.username}\nJami referral: ${total}\nBot havolasi: https://t.me/${record.username}`,
+      Markup.inlineKeyboard([[Markup.button.callback('⬅️ Konstruktor', 'constructor_home')]]),
+    );
+  });
+
+  bot.action(/^constructor_delete_(constructed_[a-f0-9-]+)$/, async (ctx) => {
+    await ctx.answerCbQuery();
+    const record = await ConstructedBot.findOneAndUpdate(
+      { _id: ctx.match[1], ownerId: String(ctx.from.id), enabled: true },
+      { $set: { enabled: false } },
+      { new: true },
+    ).lean();
+    if (!record) {
+      await ctx.reply('Bot topilmadi yoki sizga tegishli emas.');
+      return;
+    }
+    const child = constructedBots.get(record._id);
+    if (child?.polling) child.stop('constructor_deleted');
+    constructedBots.delete(record._id);
+    await ctx.reply(`@${record.username} konstruktor ro‘yxatidan o‘chirib qo‘yildi.`);
   });
 
   bot.command('promo', async (ctx) => {
@@ -3731,6 +3875,99 @@ function createApplication(options = {}) {
     return { sent, failed };
   }
 
+  async function launchConstructedBot(record) {
+    if (!record.enabled) return null;
+    if (constructedBots.has(record._id)) return constructedBots.get(record._id);
+    const token = decryptConstructorToken(record.tokenEncrypted, constructorSecret);
+    const child = new Telegraf(token);
+    patchTelegramCallApi(child.telegram);
+    child.use((ctx, next) => {
+      patchTelegramCallApi(ctx.telegram);
+      return next();
+    });
+    child.catch((error, ctx) => {
+      console.error(`Constructed bot ${record.username} update ${ctx.updateType} failed:`, error.message);
+    });
+
+    const referralLink = (userId) => `https://t.me/${record.username}?start=ref_${userId}`;
+    const showStats = async (ctx) => {
+      const userId = String(ctx.from.id);
+      const count = await ConstructedReferral.countDocuments({ botId: record._id, inviterId: userId });
+      await ctx.reply(
+        `📊 Sizning referral statistikingiz\n\n` +
+        `Taklif qilgan do‘stlaringiz: ${count}\n\n` +
+        `Referral havolangiz:\n${referralLink(userId)}`,
+        Markup.inlineKeyboard([[
+          Markup.button.url('🔗 Havolani ulashish', `https://t.me/share/url?url=${encodeURIComponent(referralLink(userId))}&text=${encodeURIComponent('Botga qo‘shiling')}`),
+        ]]),
+      );
+    };
+
+    child.start(async (ctx) => {
+      const payload = ctx.startPayload || '';
+      const match = /^ref_(\d{1,20})$/.exec(payload);
+      if (match) {
+        const inviterId = match[1];
+        const referredId = String(ctx.from.id);
+        if (inviterId !== referredId) {
+          await ConstructedReferral.findOneAndUpdate(
+            { botId: record._id, referredId },
+            { $setOnInsert: {
+              _id: `${record._id}:${referredId}`,
+              botId: record._id,
+              inviterId,
+              referredId,
+            } },
+            { upsert: true, new: true },
+          );
+        }
+      }
+      await ctx.reply(
+        '👋 Xush kelibsiz!\nBu bot orqali do‘stlaringizni referral havolangiz bilan taklif qilib, sizning faol ligingizni oshirishingiz mumkin.',
+        Markup.inlineKeyboard([[
+          Markup.button.callback('📊 Mening havolam', 'constructor_stats'),
+        ]]),
+      );
+    });
+    child.action('constructor_stats', async (ctx) => {
+      await ctx.answerCbQuery();
+      await showStats(ctx);
+    });
+    child.command('stats', showStats);
+
+    constructedBots.set(record._id, child);
+    void (async () => {
+      let attempt = 0;
+      while (constructedBots.get(record._id) === child) {
+        try {
+          await child.launch(
+            { allowedUpdates: ['message', 'callback_query'] },
+            () => console.log(`Constructed bot @${record.username} connected.`),
+          );
+          return;
+        } catch (error) {
+          attempt += 1;
+          const delay = Math.min(60000, 1000 * (2 ** Math.min(attempt - 1, 6)));
+          console.error(`Constructed bot @${record.username} connection failed; retrying in ${delay}ms:`, error.message);
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        }
+      }
+    })();
+    return child;
+  }
+
+  async function launchAllConstructedBots() {
+    if (!mongoose.connection.readyState) return;
+    const records = await ConstructedBot.find({ enabled: true }).lean();
+    for (const record of records) {
+      try {
+        await launchConstructedBot(record);
+      } catch (error) {
+        console.error(`Could not start constructed bot @${record.username}:`, error.message);
+      }
+    }
+  }
+
   return {
     app,
     bot,
@@ -3738,18 +3975,20 @@ function createApplication(options = {}) {
     ensureSeedTasks,
     closePreviousWeek,
     sendDailyReminders,
+    launchAllConstructedBots,
   };
 }
 
 async function start() {
-  const { app, bot, config, ensureSeedTasks, closePreviousWeek, sendDailyReminders } = createApplication();
+  const { app, bot, config, ensureSeedTasks, closePreviousWeek, sendDailyReminders, launchAllConstructedBots } = createApplication();
   if (!process.env.MONGODB_URI) throw new Error('MONGODB_URI is required.');
   await mongoose.connect(process.env.MONGODB_URI);
   await Promise.all([
     User, Ledger, Task, Claim, Captcha, WeeklyAward, Setting, ReferralGift, AdminGift, Donation,
-    AccountSignal, Promo, PromoRedemption,
+    AccountSignal, Promo, PromoRedemption, ConstructedBot, ConstructedReferral,
   ].map((model) => model.init()));
   await ensureSeedTasks();
+  await launchAllConstructedBots();
   await closePreviousWeek();
 
   const scheduleWeeklyAward = () => {
