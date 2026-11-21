@@ -246,6 +246,11 @@ button { font-family: inherit; border: 0; background: none; color: inherit; curs
 .task-link { display: inline-block; margin-top: 3px; color: var(--blue); font-size: 11px; font-weight: 600; text-decoration: none; }
 .task-proof { display: block; width: min(100%, 220px); margin-top: 6px; padding: 7px 9px; border: 1px solid var(--glass-border); border-radius: 9px; background: rgba(0,0,0,.2); color: var(--label); font: inherit; font-size: 11px; }
 .task-proof::placeholder { color: var(--label3); }
+.task-title { cursor: pointer; }
+.task-description { margin: 7px 0 2px; color: var(--label2); font-size: 12px; line-height: 1.45; white-space: normal; }
+.task-description[hidden] { display: none; }
+.task-pill-link { display: inline-flex; align-items: center; justify-content: center; height: 34px; padding: 0 10px; text-decoration: none; white-space: nowrap; }
+.task-pill-link.done { pointer-events: none; }
 
 /* Taklif kartasi */
 .invite { text-align: center; }
@@ -2304,8 +2309,14 @@ function renderHome() {
   $('#taskList').innerHTML = demo.tasks.map((t) => `
     <div class="item">
       <span class="ico" style="--c:${t.color}">${icon(t.icon)}</span>
-      <div class="txt"><b>${esc(t.title)}</b><span>${esc(t.sub)} · ${t.requiredForReferral ? 'Majburiy obuna' : `+${fmt(t.reward)} coin`}${t.type === 'referrals' ? ` · ${t.progress}/${t.requiredCount}` : ''}</span>${t.url ? `<a class="task-link" href="${esc(t.url)}" target="_blank" rel="noopener noreferrer">Topshiriqni ochish ↗</a>` : ''}${LIVE_MODE && t.type === 'manual' && !t.done && !t.pending ? '<input class="task-proof" data-proof type="text" maxlength="300" placeholder="Instagram username yoki havola" aria-label="Topshiriq isboti">' : ''}</div>
-      <button class="pill ${t.done ? 'done' : ''}" data-task="${esc(t.id)}" ${t.done || t.pending || (t.type === 'referrals' && !t.canClaim) ? 'disabled' : ''}>${t.done ? icon('check') : t.pending ? icon('ui18') + ' Kutilmoqda' : t.requiredForReferral ? icon('check') + ' Obunani tekshirish' : t.type === 'manual' ? icon('ui15') + ' Tasdiqqa yuborish' : t.type === 'referrals' && !t.canClaim ? icon('ui3') + ' Do‘st taklif qiling' : icon('check') + ' Tekshirish'}</button>
+      <div class="txt">
+        <b class="task-title" data-task-details="${esc(t.id)}">${esc(t.title)}</b>
+        <span>${t.requiredForReferral ? 'Majburiy obuna' : `+${fmt(t.reward)} coin`}${t.type === 'referrals' ? ` · ${t.progress}/${t.requiredCount}` : ''}</span>
+        ${t.sub ? `<p class="task-description" data-task-description="${esc(t.id)}" hidden>${esc(t.sub)}</p>` : ''}
+      </div>
+      ${t.url && t.type === 'manual'
+        ? `<a class="pill task-pill-link ${t.done ? 'done' : ''}" href="${esc(t.url)}" data-task-url="${esc(t.id)}" ${t.done ? 'aria-disabled="true"' : ''}>${t.done ? icon('check') : 'Topshiriqni ochish ↗'}</a>`
+        : `<button class="pill ${t.done ? 'done' : ''}" data-task="${esc(t.id)}" ${t.done || t.pending || (t.type === 'referrals' && !t.canClaim) ? 'disabled' : ''}>${t.done ? icon('check') : t.pending ? icon('ui18') + ' Kutilmoqda' : t.requiredForReferral ? icon('check') + ' Obunani tekshirish' : t.type === 'referrals' && !t.canClaim ? icon('ui3') + ' Do‘st taklif qiling' : icon('check') + ' Tekshirish'}</button>`}
     </div>`).join('');
   mountAnimations(btn);
   mountAnimations($('#taskList'));
@@ -2681,6 +2692,46 @@ $('#dailyBtn').addEventListener('click', async () => {
 });
 
 $('#taskList').addEventListener('click', async (e) => {
+  const title = e.target.closest('[data-task-details]');
+  if (title) {
+    const description = [...$('#taskList').querySelectorAll('[data-task-description]')]
+      .find((node) => node.dataset.taskDescription === title.dataset.taskDetails);
+    if (description) {
+      description.hidden = !description.hidden;
+      haptic('select');
+    }
+    return;
+  }
+
+  const taskLink = e.target.closest('[data-task-url]');
+  if (taskLink) {
+    e.preventDefault();
+    if (taskLink.getAttribute('aria-disabled') === 'true') return;
+    const t = demo.tasks.find((x) => x.id === taskLink.dataset.taskUrl);
+    if (!t || t.done || t.pending) return;
+    haptic('medium');
+    if (LIVE_MODE) {
+      try {
+        const result = await api('/tasks/' + encodeURIComponent(t.id), { method: 'POST', body: '{}' });
+        await refreshLiveData();
+        haptic('success');
+        toast(result.reward ? `+${fmt(result.reward)} coin` : 'Topshiriq bajarildi.');
+        renderHome();
+      } catch (error) {
+        toast(error.message);
+      }
+    } else {
+      t.done = true;
+      demo.user.balance += t.reward;
+      haptic('success');
+      toast(`+${t.reward} coin`);
+      renderHome();
+    }
+    if (tg?.openLink) tg.openLink(t.url);
+    else window.open(t.url, '_blank', 'noopener,noreferrer');
+    return;
+  }
+
   const b = e.target.closest('[data-task]');
   if (!b) return;
   const t = demo.tasks.find((x) => x.id === b.dataset.task);

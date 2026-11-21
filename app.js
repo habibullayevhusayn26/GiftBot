@@ -362,8 +362,14 @@ function renderHome() {
   $('#taskList').innerHTML = demo.tasks.map((t) => `
     <div class="item">
       <span class="ico" style="--c:${t.color}">${icon(t.icon)}</span>
-      <div class="txt"><b>${esc(t.title)}</b><span>${esc(t.sub)} · ${t.requiredForReferral ? 'Majburiy obuna' : `+${fmt(t.reward)} coin`}${t.type === 'referrals' ? ` · ${t.progress}/${t.requiredCount}` : ''}</span>${t.url ? `<a class="task-link" href="${esc(t.url)}" target="_blank" rel="noopener noreferrer">Topshiriqni ochish ↗</a>` : ''}${LIVE_MODE && t.type === 'manual' && !t.done && !t.pending ? '<input class="task-proof" data-proof type="text" maxlength="300" placeholder="Instagram username yoki havola" aria-label="Topshiriq isboti">' : ''}</div>
-      <button class="pill ${t.done ? 'done' : ''}" data-task="${esc(t.id)}" ${t.done || t.pending || (t.type === 'referrals' && !t.canClaim) ? 'disabled' : ''}>${t.done ? icon('✅') : t.pending ? 'Kutilmoqda' : t.requiredForReferral ? 'Obunani tekshirish' : t.type === 'manual' ? 'Tasdiqqa yuborish' : t.type === 'referrals' && !t.canClaim ? 'Do‘st taklif qiling' : 'Tekshirish'}</button>
+      <div class="txt">
+        <b class="task-title" data-task-details="${esc(t.id)}">${esc(t.title)}</b>
+        <span>${t.requiredForReferral ? 'Majburiy obuna' : `+${fmt(t.reward)} coin`}${t.type === 'referrals' ? ` · ${t.progress}/${t.requiredCount}` : ''}</span>
+        ${t.sub ? `<p class="task-description" data-task-description="${esc(t.id)}" hidden>${esc(t.sub)}</p>` : ''}
+      </div>
+      ${t.url && t.type === 'manual'
+        ? `<a class="pill task-pill-link ${t.done ? 'done' : ''}" href="${esc(t.url)}" data-task-url="${esc(t.id)}" ${t.done ? 'aria-disabled="true"' : ''}>${t.done ? icon('✅') : 'Topshiriqni ochish ↗'}</a>`
+        : `<button class="pill ${t.done ? 'done' : ''}" data-task="${esc(t.id)}" ${t.done || t.pending || (t.type === 'referrals' && !t.canClaim) ? 'disabled' : ''}>${t.done ? icon('✅') : t.pending ? 'Kutilmoqda' : t.requiredForReferral ? 'Obunani tekshirish' : t.type === 'referrals' && !t.canClaim ? 'Do‘st taklif qiling' : 'Tekshirish'}</button>`}
     </div>`).join('');
   mountAnimations(btn);
   mountAnimations($('#taskList'));
@@ -646,6 +652,46 @@ $('#dailyBtn').addEventListener('click', async () => {
 });
 
 $('#taskList').addEventListener('click', async (e) => {
+  const title = e.target.closest('[data-task-details]');
+  if (title) {
+    const description = [...$('#taskList').querySelectorAll('[data-task-description]')]
+      .find((node) => node.dataset.taskDescription === title.dataset.taskDetails);
+    if (description) {
+      description.hidden = !description.hidden;
+      haptic('select');
+    }
+    return;
+  }
+
+  const taskLink = e.target.closest('[data-task-url]');
+  if (taskLink) {
+    e.preventDefault();
+    if (taskLink.getAttribute('aria-disabled') === 'true') return;
+    const t = demo.tasks.find((x) => x.id === taskLink.dataset.taskUrl);
+    if (!t || t.done || t.pending) return;
+    haptic('medium');
+    if (LIVE_MODE) {
+      try {
+        const result = await api('/tasks/' + encodeURIComponent(t.id), { method: 'POST', body: '{}' });
+        await refreshLiveData();
+        haptic('success');
+        toast(result.reward ? `+${fmt(result.reward)} coin` : 'Topshiriq bajarildi.');
+        renderHome();
+      } catch (error) {
+        toast(error.message);
+      }
+    } else {
+      t.done = true;
+      demo.user.balance += t.reward;
+      haptic('success');
+      toast(`+${t.reward} coin`);
+      renderHome();
+    }
+    if (tg?.openLink) tg.openLink(t.url);
+    else window.open(t.url, '_blank', 'noopener,noreferrer');
+    return;
+  }
+
   const b = e.target.closest('[data-task]');
   if (!b) return;
   const t = demo.tasks.find((x) => x.id === b.dataset.task);

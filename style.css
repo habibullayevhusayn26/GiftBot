@@ -237,6 +237,11 @@ button { font-family: inherit; border: 0; background: none; color: inherit; curs
 .task-link { display: inline-block; margin-top: 3px; color: var(--blue); font-size: 11px; font-weight: 600; text-decoration: none; }
 .task-proof { display: block; width: min(100%, 220px); margin-top: 6px; padding: 7px 9px; border: 1px solid var(--glass-border); border-radius: 9px; background: rgba(0,0,0,.2); color: var(--label); font: inherit; font-size: 11px; }
 .task-proof::placeholder { color: var(--label3); }
+.task-title { cursor: pointer; }
+.task-description { margin: 7px 0 2px; color: var(--label2); font-size: 12px; line-height: 1.45; white-space: normal; }
+.task-description[hidden] { display: none; }
+.task-pill-link { display: inline-flex; align-items: center; justify-content: center; height: 34px; padding: 0 10px; text-decoration: none; white-space: nowrap; }
+.task-pill-link.done { pointer-events: none; }
 
 /* Taklif kartasi */
 .invite { text-align: center; }
