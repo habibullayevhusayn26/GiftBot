@@ -2028,6 +2028,7 @@ function createApplication(options = {}) {
     const total = await Task.countDocuments({ type: { $ne: 'channel' } });
     if (!total) {
       await ctx.reply('Kanal bo‘lmagan topshiriqlar topilmadi.', Markup.inlineKeyboard([
+        [Markup.button.callback('➕ Yangi topshiriq', 'admin_task_add')],
         [Markup.button.callback('⬅️ Admin panel', 'admin_home')],
       ]));
       return;
@@ -2044,11 +2045,12 @@ function createApplication(options = {}) {
       );
     }
     const rows = [];
+    rows.push([Markup.button.callback('➕ Yangi topshiriq', 'admin_task_add')]);
     if (page > 0) rows.push([Markup.button.callback('⬅️ Oldingi', `admin_tasks_${page - 1}`)]);
     if ((page + 1) * pageSize < total) rows.push([Markup.button.callback('Keyingi ➡️', `admin_tasks_${page + 1}`)]);
     rows.push([Markup.button.callback('⬅️ Admin panel', 'admin_home')]);
     await ctx.reply(
-      '📋 Topshiriqlar boshqaruvi\nYangi topshiriq uchun /task_add buyrug‘idan foydalaning.',
+      '📋 Topshiriqlar boshqaruvi\n“➕ Yangi topshiriq” tugmasi yoki /task_add buyrug‘i bilan qo‘shing.',
       Markup.inlineKeyboard(rows),
     );
   }
@@ -2332,6 +2334,91 @@ function createApplication(options = {}) {
       );
       await ctx.reply(`Balans yangilandi: ${balance} → ${balance + adjustment} coin.`);
       await showAdminUser(ctx, user._id);
+      return;
+    }
+    if (pending.kind === 'task_create_title') {
+      if (value.length > 120) {
+        await ctx.reply('Topshiriq nomi 120 belgidan oshmasligi kerak.');
+        await promptAdminInput(ctx, {
+          kind: 'task_create_title',
+          prompt: 'Topshiriq nomini yuboring (1–120 belgi).',
+        });
+        return;
+      }
+      await promptAdminInput(ctx, {
+        kind: 'task_create_description',
+        title: value,
+        prompt: `“${value}” uchun tavsif yozing (1–500 belgi).`,
+      });
+      return;
+    }
+    if (pending.kind === 'task_create_description') {
+      if (value.length > 500) {
+        await ctx.reply('Topshiriq tavsifi 500 belgidan oshmasligi kerak.');
+        await promptAdminInput(ctx, {
+          kind: 'task_create_description',
+          title: pending.title,
+          prompt: `“${pending.title}” uchun tavsif yozing (1–500 belgi).`,
+        });
+        return;
+      }
+      await promptAdminInput(ctx, {
+        kind: 'task_create_url',
+        title: pending.title,
+        description: value,
+        prompt: `“${pending.title}” uchun to‘liq havolani yuboring (https://...).`,
+      });
+      return;
+    }
+    if (pending.kind === 'task_create_url') {
+      try {
+        if (new URL(value).protocol !== 'https:') throw new Error('HTTPS required');
+      } catch {
+        await ctx.reply('Havola HTTPS formatida bo‘lishi kerak: https://example.com');
+        await promptAdminInput(ctx, {
+          kind: 'task_create_url',
+          title: pending.title,
+          description: pending.description,
+          prompt: `“${pending.title}” uchun to‘liq havolani qayta yuboring (https://...).`,
+        });
+        return;
+      }
+      await promptAdminInput(ctx, {
+        kind: 'task_create_reward',
+        title: pending.title,
+        description: pending.description,
+        url: value,
+        prompt: `“${pending.title}” uchun beriladigan ball miqdorini yuboring (1–1 000 000 000).`,
+      });
+      return;
+    }
+    if (pending.kind === 'task_create_reward') {
+      const reward = Number(value.replace(/[,_\s]/g, ''));
+      if (!Number.isSafeInteger(reward) || reward < 1 || reward > 1_000_000_000) {
+        await ctx.reply('Ball 1 dan 1 000 000 000 gacha butun son bo‘lishi kerak.');
+        await promptAdminInput(ctx, {
+          kind: 'task_create_reward',
+          title: pending.title,
+          description: pending.description,
+          url: pending.url,
+          prompt: `“${pending.title}” uchun beriladigan ball miqdorini qayta yuboring (1–1 000 000 000).`,
+        });
+        return;
+      }
+      const taskId = `task_${crypto.randomBytes(10).toString('hex')}`;
+      await Task.create({
+        _id: taskId,
+        title: pending.title,
+        description: pending.description,
+        icon: '✅',
+        type: 'manual',
+        reward,
+        url: pending.url,
+        enabled: true,
+        position: 10,
+      });
+      await ctx.reply(`✅ “${pending.title}” topshirig‘i qo‘shildi.\nTavsif: ${pending.description}\nBall: ${reward}\nHavola: ${pending.url}`);
+      await showTaskSettings(ctx);
       return;
     }
     if (pending.kind === 'promo_create_code') {
@@ -2957,46 +3044,10 @@ function createApplication(options = {}) {
   });
 
   bot.command('task_add', adminOnly, async (ctx) => {
-    const raw = ctx.message.text.replace(/^\/task_add(?:@\w+)?\s*/i, '');
-    const parts = raw.split('|').map((part) => part.trim());
-    const [id, rewardText, type] = (parts[0] || '').split(/\s+/);
-    const [title, url = '', chatId = ''] = parts.slice(1);
-    const reward = Number(rewardText);
-    if (!/^[a-z0-9_-]{2,40}$/.test(id || '') ||
-        !Number.isSafeInteger(reward) || reward < 1 ||
-        !['channel', 'manual', 'referrals'].includes(type) || !title) {
-      await ctx.reply('Format: /task_add id ball channel|manual|referrals | Nomi | URL | CHAT_ID\nCHAT_ID faqat channel uchun kerak.');
-      return;
-    }
-    if (type === 'channel' && (!url || !chatId)) {
-      await ctx.reply('Kanal topshirig‘i uchun URL va bot admin bo‘lgan CHAT_ID kerak.');
-      return;
-    }
-    if (type === 'manual' && !url) {
-      await ctx.reply('Manual tekshiriladigan topshiriq uchun URL kiriting.');
-      return;
-    }
-    if (url) {
-      try {
-        if (new URL(url).protocol !== 'https:') throw new Error('HTTPS required');
-      } catch {
-        await ctx.reply('Topshiriq havolasi HTTPS formatida bo‘lishi kerak.');
-        return;
-      }
-    }
-    await Task.findByIdAndUpdate(id, {
-      title: title.slice(0, 120),
-      description: 'Topshiriqni bajaring',
-      type,
-      reward,
-      url,
-      chatId: type === 'channel' ? chatId : '',
-      icon: type === 'channel' ? '📣' : type === 'manual' ? '✅' : '👥',
-      requiredCount: type === 'referrals' ? 3 : 0,
-      enabled: true,
-      position: 10,
-    }, { upsert: true, new: true, runValidators: true });
-    await ctx.reply(`“${title}” topshirig‘i qo‘shildi. Uni /admin panelidan boshqarishingiz mumkin.`);
+    await promptAdminInput(ctx, {
+      kind: 'task_create_title',
+      prompt: 'Yangi topshiriq nomini yuboring (1–120 belgi).',
+    });
   });
 
   bot.action('admin_claims', adminOnly, async (ctx) => {
@@ -3048,6 +3099,14 @@ function createApplication(options = {}) {
   bot.action('admin_tasks', adminOnly, async (ctx) => {
     await ctx.answerCbQuery();
     await showTaskSettings(ctx);
+  });
+
+  bot.action('admin_task_add', adminOnly, async (ctx) => {
+    await ctx.answerCbQuery();
+    await promptAdminInput(ctx, {
+      kind: 'task_create_title',
+      prompt: 'Yangi topshiriq nomini yuboring (1–120 belgi).',
+    });
   });
 
   bot.action(/^admin_tasks_(\d+)$/, adminOnly, async (ctx) => {
