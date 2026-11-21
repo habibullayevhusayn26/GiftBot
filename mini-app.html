@@ -1161,8 +1161,12 @@ body { font-size: 17px; line-height: 1.35; }
 .page { animation-duration: .5s; animation-timing-function: var(--ease); }
 
 /* Qulaylik */
-:focus-visible { outline: 3px solid rgba(10,132,255,.9); outline-offset: 2px; }
-button, .item, .pill { touch-action: manipulation; }
+:focus-visible { outline: 2px solid rgba(10,132,255,.55); outline-offset: 2px; }
+button, .item, .pill { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+@media (pointer: coarse) {
+  :focus, :focus-visible { outline: none !important; box-shadow: none !important; }
+  button, [role="button"], .pill { -webkit-tap-highlight-color: transparent; }
+}
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
@@ -1511,6 +1515,21 @@ body[data-theme="light"] .task-proof { border-color: rgba(66,95,130,.14) !import
 body[data-theme="light"] .settings-select,
 body[data-theme="light"] .donation-input,
 body[data-theme="light"] .task-proof { background: rgba(255,255,255,.88) !important; color: var(--label) !important; }
+/* Mobil bosishda ko‘k fokus va tab fonlarini butunlay olib tashlash */
+.tab-thumb { display: none !important; }
+@media (pointer: coarse) {
+  html, body, #app, button, [role="button"], .btn, .pill, .tabbar button {
+    -webkit-tap-highlight-color: transparent;
+  }
+  button:focus,
+  button:focus-visible,
+  [role="button"]:focus,
+  [role="button"]:focus-visible,
+  .profile-trigger:focus-visible,
+  .lq-slider:focus-visible .lq-thumb {
+    outline: none !important;
+  }
+}
   </style>
 </head>
 <body>
@@ -1874,6 +1893,12 @@ function getDeviceId() {
 const DEVICE_ID = getDeviceId();
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+document.addEventListener('pointerdown', (event) => {
+  if (event.pointerType === 'touch') {
+    const button = event.target.closest('button');
+    if (button) setTimeout(() => button.blur(), 0);
+  }
+});
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const ANIMATION_FILES = {
   'plus': 'plus.json',

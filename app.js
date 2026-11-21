@@ -34,6 +34,12 @@ function getDeviceId() {
 const DEVICE_ID = getDeviceId();
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+document.addEventListener('pointerdown', (event) => {
+  if (event.pointerType === 'touch') {
+    const button = event.target.closest('button');
+    if (button) setTimeout(() => button.blur(), 0);
+  }
+});
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const ANIMATION_FILES = {
   '🌙': 'CAACAgEAAxUAAWrncguskyqISIUj84Nn4l1FFYEEAAK6BAACOUQ5RJ7IoKaWrlJ6PQQ.json',
